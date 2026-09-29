@@ -22,7 +22,12 @@ export function route(handler: (request: Request) => Promise<Response>) {
     try {
       return await handler(request)
     } catch (error) {
-      if (error instanceof HttpError) return json({ error: error.message }, error.status)
+      if (error instanceof HttpError) {
+        const retry = (error as HttpError & { retryAfterSeconds?: number }).retryAfterSeconds
+        const response = json(retry ? { error: 'rate_limited', message: error.message, retry_after: retry } : { error: error.message }, error.status)
+        if (retry) response.headers.set('retry-after', String(retry))
+        return response
+      }
       if (error instanceof ZodError) return json({ error: 'invalid_request', issues: error.issues }, 400)
       console.error(error)
       return json({ error: 'internal_error' }, 500)
