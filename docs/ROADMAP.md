@@ -26,7 +26,7 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | 2 Upload pipeline | ✅ merged (#3) |
 | 3 Search pipeline | ✅ merged (#4) |
 | 4 Frontend integration | ✅ merged (#5) |
-| 5 Seed data, QA & demo | ⏳ next — 48 listings already seeded (19 occasion-wear photos + 29 from the team's product sheet) |
+| 5 Seed data, QA & demo | ✅ merged (#6) — 9/9 PRD success criteria pass live (`scripts/verify-prd.mjs`) |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 
