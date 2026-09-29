@@ -11,6 +11,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@supabase/auth-js": "^2.117.2",
     "@supabase/supabase-js": "^2.117.2",
     "@vitejs/plugin-react": "^6.1.1",
     "lucide-react": "^1.48.0",

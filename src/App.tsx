@@ -5,14 +5,14 @@ import {
 } from 'lucide-react'
 import type { Area, Draft, Listing, SearchResponse } from '../shared/contracts'
 import { CATEGORIES, GENDERS, OCCASIONS, SIZES, type Size } from '../shared/vocab'
-import { api, ApiError } from './api'
+import { api, ApiError, type AppNotification, type Me } from './api'
+import { supabase } from './supabase'
 import { addDays, overlaps, quote, todayInIndia, validateDates, MAX_DAYS_AHEAD, type Booking } from '../shared/booking'
 import { categoryLabel, downscaleImage, formatDate, formatKm, formatRange, kmBetween, occasionLabel, rupees, storage, titleCase } from './lib'
 
 type Page = 'ai' | 'explore' | 'rentals' | 'list' | 'profile' | 'wardrobe'
 // A listing as the UI sees it: from GET /api/listings, GET /api/listings/:id, or a search result.
 type Piece = Listing & { reason?: string | null; similarity?: number }
-type BookingKey = { id: string; token: string }
 type SearchFilters = { size?: Size; max_price?: number }
 type SearchState =
   | { status: 'idle' }
@@ -42,8 +42,10 @@ function App() {
   const [page, setPage] = useState<Page>('ai')
   const [selected, setSelected] = useState<Piece | null>(null)
   const [favorites, setFavorites] = useState<string[]>(() => storage.get('drape:favorites', []))
-  // No accounts in v0: this browser remembers the bookings it made (id + secret token) to show them in My Rentals.
-  const [bookingKeys, setBookingKeys] = useState<BookingKey[]>(() => storage.get('drape:bookings', []))
+  const [me, setMe] = useState<Me | null>(null)
+  const [authFor, setAuthFor] = useState<string | null>(null) // why sign-in was asked for; null = not showing
+  const [notes, setNotes] = useState<{ items: AppNotification[]; unread: number }>({ items: [], unread: 0 })
+  const [bellOpen, setBellOpen] = useState(false)
   const [areas, setAreas] = useState<Area[]>([])
   const [area, setArea] = useState<string>(() => storage.get('drape:area', DEFAULT_AREA))
   const [query, setQuery] = useState('')
@@ -58,7 +60,24 @@ function App() {
   useEffect(() => { api.listings({ limit: 48 }).then(setNearby).catch(() => setNearby([])) }, [])
   useEffect(() => { storage.set('drape:area', area) }, [area])
   useEffect(() => { storage.set('drape:favorites', favorites) }, [favorites])
-  useEffect(() => { storage.set('drape:bookings', bookingKeys) }, [bookingKeys])
+  // Session: Supabase keeps it in localStorage and refreshes it; we mirror the signed-in user from /api/me.
+  useEffect(() => {
+    if (!supabase) return
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) api.me().then((r) => setMe(r.user)).catch(() => setMe(null))
+      else { setMe(null); setNotes({ items: [], unread: 0 }); setBellOpen(false) }
+    })
+    return () => data.subscription.unsubscribe()
+  }, [])
+  const loadNotes = useCallback(() => api.notifications().then((r) => setNotes({ items: r.notifications, unread: r.unread })).catch(() => undefined), [])
+  // Owners hear about new bookings on the bell; poll while signed in (and whenever the tab regains focus).
+  useEffect(() => {
+    if (!me) return
+    loadNotes()
+    const timer = window.setInterval(loadNotes, 30_000)
+    window.addEventListener('focus', loadNotes)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', loadNotes) }
+  }, [me, loadNotes])
 
   const areaCoords = useMemo(() => new Map(areas.map((a) => [a.name, a])), [areas])
   // Distance from the selected area: search results carry it from PostGIS; other listings use area centroids.
@@ -117,12 +136,21 @@ function App() {
 
   const openPiece = (piece: Piece) => { setSelected(piece); window.scrollTo(0, 0) }
   const openListing = (id: string) => api.listing(id).then(openPiece).catch(() => notify('Couldn’t open that piece right now'))
-  const onBooked = (key: BookingKey) => { setBookingKeys((current) => [...current, key]); notify('Booked! Pickup details are saved in My Rentals') }
+  const onBooked = () => notify('Booked! The owner has been notified — details are in My Rentals')
+  const askSignIn = (reason: string) => setAuthFor(reason)
+  const openBell = () => {
+    if (!me) return askSignIn('Sign in to see your notifications')
+    const opening = !bellOpen
+    setBellOpen(opening)
+    if (opening && notes.unread > 0) { api.markRead().catch(() => undefined); window.setTimeout(() => setNotes((n) => ({ ...n, unread: 0 })), 1500) }
+  }
+  const signOut = async () => { await supabase?.auth.signOut(); setPage('ai'); notify('Signed out') }
   const viewRentals = () => { setSelected(null); setPage('rentals'); window.scrollTo(0, 0) }
   const searchContext = search.status === 'done' ? search.response.parsed : null
 
   const toastNode = toast && <div className="toast" role="status"><Check size={16} /> {toast}</div>
-  if (selected) return <><ProductDetail piece={selected} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} onBooked={onBooked} onViewRentals={viewRentals} />{toastNode}</>
+  if (authFor) return <><AuthPage reason={authFor} onDone={(name) => { setAuthFor(null); notify(`Welcome, ${name}`) }} onCancel={() => setAuthFor(null)} />{toastNode}</>
+  if (selected) return <><ProductDetail piece={selected} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} me={me} onNeedAuth={() => askSignIn('Sign in to book')} onBooked={onBooked} onViewRentals={viewRentals} />{toastNode}</>
 
   const areaOptions = areas.length ? areas.map((a) => a.name) : [area]
   return <div className="app-shell">
@@ -136,22 +164,25 @@ function App() {
       </nav>
       <div className="top-actions">
         <label className="location has-select" title="Your area"><MapPin size={15} /> {area} <ChevronDown size={13} /><AreaSelect value={area} options={areaOptions} onChange={changeArea} /></label>
-        <button className="icon-button"><Bell size={17} /></button>
-        <button className="avatar" onClick={() => setPage('profile')}>AK</button>
+        <button className={`icon-button ${notes.unread ? 'has-badge' : ''}`} onClick={openBell} aria-label={notes.unread ? `${notes.unread} new notifications` : 'Notifications'} aria-expanded={bellOpen}><Bell size={17} />{notes.unread > 0 && <span className="bell-badge">{notes.unread}</span>}</button>
+        <button className="avatar" onClick={() => me ? setPage('profile') : askSignIn('Sign in to list, book and get notified')} aria-label={me ? 'Your profile' : 'Sign in'}>{me ? initials(me.name) : <UserRound size={14} />}</button>
         <button className="mobile-menu" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20} /></button>
       </div>
     </header>
+    {bellOpen && me && <NotificationsPanel items={notes.items} onOpen={(id) => { setBellOpen(false); openListing(id) }} onClose={() => setBellOpen(false)} />}
     {menuOpen && <div className="mobile-nav">
       <div className="has-select"><button tabIndex={-1} aria-hidden="true"><MapPin size={13} /> {area} ▾</button><AreaSelect value={area} options={areaOptions} onChange={(next) => { changeArea(next); setMenuOpen(false) }} /></div>
       {(['ai', 'explore', 'rentals', 'list', 'profile'] as Page[]).map((item) => <button key={item} onClick={() => { setPage(item); setMenuOpen(false) }}>{item === 'ai' ? 'AI Stylist' : item === 'list' ? 'List Item' : item[0].toUpperCase() + item.slice(1)}</button>)}
+      <button onClick={() => { setMenuOpen(false); if (me) openBell(); else askSignIn('Sign in to see your notifications') }}>Notifications{notes.unread ? ` (${notes.unread})` : ''}</button>
+      {me ? <button onClick={() => { setMenuOpen(false); signOut() }}>Sign out</button> : <button onClick={() => { setMenuOpen(false); askSignIn('Sign in to list, book and get notified') }}>Sign in</button>}
     </div>}
 
     <main className="main-content">
       {page === 'ai' && <Home query={query} setQuery={setQuery} submitPrompt={submitPrompt} search={search} startOver={startOver} retry={() => search.status !== 'idle' && runSearch(search.turns)} filters={filters} setFilters={changeFilters} area={area} nearby={nearby ? byDistance(nearby).slice(0, 4) : null} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} onExplore={() => setPage('explore')} />}
       {page === 'explore' && <Explore area={area} byDistance={byDistance} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} />}
-      {page === 'rentals' && <Rentals keys={bookingKeys} onExplore={() => setPage('explore')} onOpen={openListing} />}
-      {page === 'list' && <ListItem areas={areaOptions} defaultArea={area} onPublished={(listing) => { notify('Your piece is live — it shows up in search right now'); setNearby((current) => [listing, ...(current ?? [])]); openPiece(listing) }} onError={notify} />}
-      {page === 'profile' && <Profile onPage={setPage} />}
+      {page === 'rentals' && <Rentals me={me} onSignIn={() => askSignIn('Sign in to see your rentals')} onExplore={() => setPage('explore')} onOpen={openListing} />}
+      {page === 'list' && <ListItem me={me} onNeedAuth={() => askSignIn('Sign in to publish your piece')} areas={areaOptions} defaultArea={area} onPublished={(listing) => { notify('Your piece is live — it shows up in search right now'); setNearby((current) => [listing, ...(current ?? [])]); openPiece(listing) }} onError={notify} />}
+      {page === 'profile' && <Profile me={me} favorites={favorites.length} onPage={setPage} onSignIn={() => askSignIn('Sign in to see your profile')} onSignOut={signOut} />}
       {page === 'wardrobe' && <Wardrobe onExplore={() => setPage('explore')} />}
     </main>
     <div className="mobile-bottom-nav">{(['ai', 'explore', 'rentals', 'list', 'profile'] as Page[]).map((item) => <button className={page === item ? 'active' : ''} key={item} onClick={() => setPage(item)}><span>{item === 'ai' ? <Gem size={17} /> : item === 'explore' ? <Search size={17} /> : item === 'rentals' ? <Check size={17} /> : item === 'list' ? <Plus size={18} /> : <UserRound size={17} />}</span>{item === 'ai' ? 'AI' : item === 'list' ? 'List' : item[0].toUpperCase() + item.slice(1)}</button>)}</div>
@@ -237,7 +268,7 @@ function Explore({ area, byDistance, distanceTo, favorites, toggleFavorite, onSe
   return <div className="explore-page"><div className="page-intro"><div><span className="section-kicker">THE NEARBY EDIT</span><h1>Explore <em>pieces</em></h1><p>Borrow beautifully. Keep things moving.</p></div><div className="explore-search"><Search size={17} /><input value={text} onChange={(event) => setText(event.target.value)} placeholder="Search sarees, blazers, colours..." aria-label="Filter pieces" /></div></div><div className="category-scroll">{occasionChips.map((item) => <button className={chip === item ? 'selected' : ''} key={item} onClick={() => setChip(item)}>{item}</button>)}</div><div className="filter-row"><button><SlidersHorizontal size={15} /> Filters</button><span>{listings === null ? 'Loading pieces…' : `${shown.length} ${shown.length === 1 ? 'piece' : 'pieces'} near ${area}`}</span><button className="sort-button">Sort: Nearest <ChevronDown size={14} /></button></div><div className="explore-grid">{listings === null ? <SkeletonCards count={8} /> : shown.map((piece) => <ProductCard key={piece.id} piece={piece} distance={distanceTo(piece)} favorite={favorites.includes(piece.id)} onFavorite={() => toggleFavorite(piece.id)} onSelect={() => onSelect(piece)} />)}</div>{listings !== null && shown.length === 0 && <div className="empty-state"><Gem size={25} /><h2>{failed ? 'Couldn’t load pieces right now.' : 'Nothing matching nearby yet.'}</h2><p>{failed ? 'Check your connection and try again.' : 'Try a different occasion, or ask the AI Stylist to widen the search.'}</p></div>}</div>
 }
 
-function ProductDetail({ piece: initial, distance, area, context, favorite, onFavorite, onBack, onBooked, onViewRentals }: { piece: Piece; distance: number | null; area: string; context: SearchResponse['parsed'] | null; favorite: boolean; onFavorite: () => void; onBack: () => void; onBooked: (key: BookingKey) => void; onViewRentals: () => void }) {
+function ProductDetail({ piece: initial, distance, area, context, favorite, onFavorite, onBack, me, onNeedAuth, onBooked, onViewRentals }: { piece: Piece; distance: number | null; area: string; context: SearchResponse['parsed'] | null; favorite: boolean; onFavorite: () => void; onBack: () => void; me: Me | null; onNeedAuth: () => void; onBooked: () => void; onViewRentals: () => void }) {
   const [piece, setPiece] = useState<Piece>(initial)
   const [booking, setBooking] = useState(false)
   const [contact, setContact] = useState<{ state: 'hidden' | 'loading' | 'shown' | 'error'; value?: string }>({ state: 'hidden' })
@@ -260,16 +291,15 @@ function ProductDetail({ piece: initial, distance, area, context, favorite, onFa
       <span>{contact.state === 'shown' && contact.value ? (contactHref ? <a href={contactHref} onClick={(event) => event.stopPropagation()}>{contact.value}</a> : contact.value) : contact.state === 'loading' ? 'Revealing contact…' : contact.state === 'error' ? 'Couldn’t load contact — tap to retry' : <>Nearby owner · {piece.area}{km && km !== 'Nearby' ? ` · ${km} away` : ''} · Tap to show contact</>}</span></div><ChevronRight size={17} /></div><div className="detail-actions">
     <button className="primary-button" onClick={() => setBooking(true)} aria-expanded={booking}>Book this piece <ArrowUpRight size={17} /></button>
     <button className={`save-button ${favorite ? 'saved' : ''}`} onClick={onFavorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /> {favorite ? 'Saved' : 'Save'}</button></div>
-    {booking && <BookingPanel piece={piece} onBooked={onBooked} onViewRentals={onViewRentals} />}
+    {booking && <BookingPanel piece={piece} me={me} onNeedAuth={onNeedAuth} onBooked={onBooked} onViewRentals={onViewRentals} />}
     {reasons.length > 0 && <div className="why-match"><div className="why-title"><Gem size={16} /> Why this matches you</div>{reasons.map((reason) => <div className="match-row" key={reason}><Check size={14} />{reason}</div>)}</div>}
     <div className="attributes"><h3>The details</h3><div className="attribute-grid">{[['Colour', piece.colors?.length ? piece.colors.map(titleCase).join(', ') : '—'], ['Size', piece.size === 'FREE' ? 'Free size' : piece.size], ['Category', categoryLabel(piece.category)], ['Occasion', piece.occasions.map(occasionLabel).join(', ') || '—'], ['Style', piece.style_tags.slice(0, 3).map(titleCase).join(', ') || '—'], ['Formality', piece.formality ? `${piece.formality} / 5` : '—']].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></div></div></div></div>
 }
 
-function BookingPanel({ piece, onBooked, onViewRentals }: { piece: Piece; onBooked: (key: BookingKey) => void; onViewRentals: () => void }) {
+function BookingPanel({ piece, me, onNeedAuth, onBooked, onViewRentals }: { piece: Piece; me: Me | null; onNeedAuth: () => void; onBooked: () => void; onViewRentals: () => void }) {
   const today = todayInIndia()
   const [booked, setBooked] = useState<{ start_date: string; end_date: string }[]>([])
-  const saved = storage.get('drape:borrower', { name: '', contact: '' })
-  const [form, setForm] = useState({ start: '', end: '', name: saved.name, contact: saved.contact, method: 'upi' as 'upi' | 'card' })
+  const [form, setForm] = useState({ start: '', end: '', contact: storage.get('drape:borrower-contact', me?.email ?? ''), method: 'upi' as 'upi' | 'card' })
   const [status, setStatus] = useState<{ state: 'editing' | 'paying' | 'error'; message?: string } | { state: 'done'; booking: Booking }>({ state: 'editing' })
   useEffect(() => { api.availability(piece.id).then(setBooked).catch(() => setBooked([])) }, [piece.id])
 
@@ -288,17 +318,18 @@ function BookingPanel({ piece, onBooked, onViewRentals }: { piece: Piece; onBook
   const datesChosen = Boolean(form.start && form.end)
   const dateProblem = datesChosen ? validateDates(form.start, form.end, today) ?? (booked.some((b) => overlaps(b, { start_date: form.start, end_date: form.end })) ? 'Those dates overlap an existing booking.' : null) : null
   const price = datesChosen && !dateProblem ? quote(piece.price_per_day, form.start, form.end) : null
-  const ready = price && form.name.trim() && form.contact.trim().length >= 3 && status.state !== 'paying'
+  const ready = price && me && form.contact.trim().length >= 3 && status.state !== 'paying'
 
   const pay = async () => {
     if (!ready) return
     setStatus({ state: 'paying' })
     try {
-      const { booking, token } = await api.book({ listing_id: piece.id, start_date: form.start, end_date: form.end, borrower_name: form.name.trim(), borrower_contact: form.contact.trim(), payment_method: form.method })
-      storage.set('drape:borrower', { name: form.name.trim(), contact: form.contact.trim() })
-      onBooked({ id: booking.id, token })
+      const { booking } = await api.book({ listing_id: piece.id, start_date: form.start, end_date: form.end, borrower_contact: form.contact.trim(), payment_method: form.method })
+      storage.set('drape:borrower-contact', form.contact.trim())
+      onBooked()
       setStatus({ state: 'done', booking })
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) { onNeedAuth(); setStatus({ state: 'editing' }); return }
       if (error instanceof ApiError && error.status === 409) api.availability(piece.id).then(setBooked).catch(() => undefined)
       setStatus({ state: 'error', message: error instanceof ApiError ? error.message : 'Payment didn’t go through. Please try again.' })
     }
@@ -311,7 +342,7 @@ function BookingPanel({ piece, onBooked, onViewRentals }: { piece: Piece; onBook
       <label><span className="field-label">Return</span><div className="explore-search field"><input type="date" value={form.end} min={form.start || today} max={addDays(form.start || today, 13)} onChange={(event) => setForm({ ...form, end: event.target.value })} aria-label="Return date" /></div></label>
     </div>
     {dateProblem && <p className="field-label booking-error">{dateProblem}</p>}
-    <span className="field-label">Your name</span><div className="explore-search field"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="So the owner knows who’s coming" aria-label="Your name" /></div>
+    {me ? <p className="field-label">Booking as {me.name}</p> : <p className="field-label">You’ll sign in before paying so the owner knows who’s coming.</p>}
     <span className="field-label">Your phone or email</span><div className="explore-search field"><input value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value })} placeholder="Shared with the owner for pickup" aria-label="Your phone or email" /></div>
     {price && <div className="attribute-grid booking-quote">
       <div><span>Rent · {price.days} {price.days === 1 ? 'day' : 'days'} × {rupees(piece.price_per_day)}</span><strong>{rupees(price.total)}</strong></div>
@@ -320,16 +351,17 @@ function BookingPanel({ piece, onBooked, onViewRentals }: { piece: Piece; onBook
       <div><span>Pickup</span><strong>{piece.area}, {formatDate(form.start)}</strong></div>
     </div>}
     <span className="field-label">Pay with</span><ToggleChips single options={[['upi', 'UPI'], ['card', 'Card']]} selected={[form.method]} onChange={([method]) => method && setForm({ ...form, method: method as 'upi' | 'card' })} />
-    <button className="primary-button full-width" disabled={!ready} onClick={pay}>{status.state === 'paying' ? 'Processing payment…' : price ? `Pay ${rupees(price.advance)} advance` : 'Choose your dates'} <ArrowUpRight size={17} /></button>
+    {!me && <button className="primary-button full-width" onClick={onNeedAuth}>Sign in to book <ArrowUpRight size={17} /></button>}
+    {me && <button className="primary-button full-width" disabled={!ready} onClick={pay}>{status.state === 'paying' ? 'Processing payment…' : price ? `Pay ${rupees(price.advance)} advance` : 'Choose your dates'} <ArrowUpRight size={17} /></button>}
     {status.state === 'error' && <p className="field-label booking-error" role="alert">{status.message}</p>}
-    <p className="field-label">Demo payment — no real money moves. The owner’s contact appears once you’re booked.</p>
+    <p className="field-label">Demo payment — no real money moves. The owner is notified and their contact appears once you’re booked.</p>
   </div>
 }
 
-function Rentals({ keys, onExplore, onOpen }: { keys: BookingKey[]; onExplore: () => void; onOpen: (listingId: string) => void }) {
+function Rentals({ me, onSignIn, onExplore, onOpen }: { me: Me | null; onSignIn: () => void; onExplore: () => void; onOpen: (listingId: string) => void }) {
   const [bookings, setBookings] = useState<Booking[] | null>(null)
   const [tab, setTab] = useState<'upcoming' | 'active' | 'past'>('upcoming')
-  useEffect(() => { if (keys.length === 0) { setBookings([]); return } api.myBookings(keys).then(setBookings).catch(() => setBookings([])) }, [keys])
+  useEffect(() => { if (!me) { setBookings([]); return } setBookings(null); api.myBookings().then(setBookings).catch(() => setBookings([])) }, [me])
   const today = todayInIndia()
   const groups = {
     upcoming: (bookings ?? []).filter((b) => b.start_date > today),
@@ -340,13 +372,13 @@ function Rentals({ keys, onExplore, onOpen }: { keys: BookingKey[]; onExplore: (
   return <div className="simple-page"><div className="page-intro compact"><div><span className="section-kicker">YOUR CLOSET, IN MOTION</span><h1>My <em>rentals</em></h1><p>Everything you have borrowed, in one place.</p></div></div><div className="tabs">{tabs.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{groups[key].length > 0 && <span>{groups[key].length}</span>}</button>)}</div>
     {bookings === null && <div className="rental-card is-loading" aria-hidden="true"><div className="rental-body"><span className="status-pill">Loading your bookings…</span></div></div>}
     {groups[tab].map((b) => <div className="rental-card" key={b.id}><img src={b.listing.image_url} alt={b.listing.title} /><div className="rental-body"><span className="status-pill"><span /> {b.status === 'confirmed' ? (tab === 'past' ? 'Returned' : tab === 'active' ? 'With you now' : 'Confirmed') : 'Cancelled'}</span><h2>{b.listing.title}</h2><div className="rental-details"><div><span>Pickup</span><strong>{formatDate(b.start_date)}</strong></div><div><span>Return</span><strong>{formatDate(b.end_date)}</strong></div><div><span>Location</span><strong>{b.listing.area}, Chennai</strong></div><div><span>Owner</span><strong>{b.listing.owner_name} · {b.listing.owner_contact}</strong></div><div><span>Paid / due</span><strong>{rupees(b.advance)} / {rupees(b.total - b.advance)}</strong></div></div><button className="outline-button" onClick={() => onOpen(b.listing_id)}>View details <ArrowUpRight size={15} /></button></div></div>)}
-    <div className="empty-rental"><span className="empty-ring"><Gem size={19} /></span><h2>{bookings !== null && groups[tab].length === 0 ? (tab === 'upcoming' ? 'No upcoming rentals yet.' : tab === 'active' ? 'Nothing with you right now.' : 'No past rentals yet.') : 'Your next look is nearby.'}</h2><p>Find something special to borrow for your next plan.</p><button className="text-button" onClick={onExplore}>Explore nearby pieces <ArrowUpRight size={15} /></button></div></div>
+    {!me ? <div className="empty-rental"><span className="empty-ring"><UserRound size={19} /></span><h2>Sign in to see your rentals.</h2><p>Your bookings follow your account across devices.</p><button className="text-button" onClick={onSignIn}>Sign in <ArrowUpRight size={15} /></button></div> : <div className="empty-rental"><span className="empty-ring"><Gem size={19} /></span><h2>{bookings !== null && groups[tab].length === 0 ? (tab === 'upcoming' ? 'No upcoming rentals yet.' : tab === 'active' ? 'Nothing with you right now.' : 'No past rentals yet.') : 'Your next look is nearby.'}</h2><p>Find something special to borrow for your next plan.</p><button className="text-button" onClick={onExplore}>Explore nearby pieces <ArrowUpRight size={15} /></button></div>}</div>
 }
 
 const EMPTY_DRAFT: Draft = { title: '', category: 'other', gender: 'women', occasions: [], style_tags: [], colors: [], formality: 3, description: '' }
 type UploadPhase = 'empty' | 'analyzing' | 'ready' | 'manual' | 'not_clothing' | 'failed'
 
-function ListItem({ areas, defaultArea, onPublished, onError }: { areas: string[]; defaultArea: string; onPublished: (listing: Listing) => void; onError: (message: string) => void }) {
+function ListItem({ me, onNeedAuth, areas, defaultArea, onPublished, onError }: { me: Me | null; onNeedAuth: () => void; areas: string[]; defaultArea: string; onPublished: (listing: Listing) => void; onError: (message: string) => void }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [phase, setPhase] = useState<UploadPhase>('empty')
   const [preview, setPreview] = useState<string | null>(null)
@@ -354,7 +386,7 @@ function ListItem({ areas, defaultArea, onPublished, onError }: { areas: string[
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [message, setMessage] = useState('')
   const [publishing, setPublishing] = useState(false)
-  const [terms, setTerms] = useState({ size: '' as Size | '', price: '', area: defaultArea, owner_name: storage.get('drape:owner_name', ''), owner_contact: storage.get('drape:owner_contact', '') })
+  const [terms, setTerms] = useState({ size: '' as Size | '', price: '', area: defaultArea, owner_name: storage.get('drape:owner_name', me?.name ?? ''), owner_contact: storage.get('drape:owner_contact', '') })
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
 
   const onFile = async (file: File | undefined) => {
@@ -400,7 +432,9 @@ function ListItem({ areas, defaultArea, onPublished, onError }: { areas: string[
   ].filter((item): item is string => Boolean(item))
   const canPublish = editing && imageUrl !== null && missing.length === 0 && !publishing
 
+  useEffect(() => { if (me && !terms.owner_name) setTerms((t) => ({ ...t, owner_name: me.name })) }, [me])  // eslint-disable-line react-hooks/exhaustive-deps
   const publish = async () => {
+    if (!me) { onNeedAuth(); return }
     if (!canPublish || !imageUrl || !terms.size) return
     setPublishing(true)
     try {
@@ -409,6 +443,7 @@ function ListItem({ areas, defaultArea, onPublished, onError }: { areas: string[
       storage.set('drape:owner_contact', terms.owner_contact.trim())
       onPublished(listing)
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) { onNeedAuth(); setPublishing(false); return }
       onError(error instanceof ApiError ? error.message : 'Could not publish. Please try again.')
       setPublishing(false)
     }
@@ -452,7 +487,7 @@ function ListItem({ areas, defaultArea, onPublished, onError }: { areas: string[
           <span className="field-label">Phone or email</span><div className="explore-search field"><input value={terms.owner_contact} onChange={(event) => setTerms({ ...terms, owner_contact: event.target.value })} placeholder="Only revealed when someone taps Show contact" aria-label="Phone or email" /></div>
         </>}
       </div><Settings size={16} /></div>
-      <button className="primary-button full-width" disabled={!canPublish} onClick={publish}>{publishing ? 'Publishing…' : 'Publish item'} <ArrowUpRight size={17} /></button>
+      <button className="primary-button full-width" disabled={!canPublish} onClick={publish}>{publishing ? 'Publishing…' : me ? 'Publish item' : 'Sign in & publish'} <ArrowUpRight size={17} /></button>
       {editing && missing.length > 0 && <p className="field-label">Still needed: {missing.join(', ')}</p>}
     </div></div>
     <div className="demand-note"><Gem size={17} /><div><strong>Live in search the moment you publish</strong><p>People nearby find your piece by describing what they need — no catalogue browsing.</p></div><ArrowUpRight size={17} /></div></div>
@@ -478,7 +513,76 @@ function ChipEditor({ values, onChange, max }: { values: string[]; onChange: (va
   return <div className="category-scroll inline">{values.map((value) => <button type="button" className="selected" key={value} onClick={() => onChange(values.filter((v) => v !== value))} aria-label={`Remove ${value}`}>{value} <X size={11} /></button>)}{values.length < max && <input className="chip-input" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); add() } }} onBlur={add} placeholder="+ add" aria-label="Add a tag" />}</div>
 }
 
-function Profile({ onPage }: { onPage: (page: Page) => void }) { return <div className="simple-page profile-page"><div className="profile-header"><div className="profile-avatar">AK</div><div><span className="section-kicker">YOUR DRAPE PROFILE</span><h1>Aditi <em>Krishnan</em></h1><p><MapPin size={14} /> Chennai · Member since 2024</p></div><button className="icon-button"><Settings size={18} /></button></div><div className="stats"><div><strong>08</strong><span>Items listed</span></div><div><strong>12</strong><span>Rentals</span></div><div><strong>₹24.8k</strong><span>Earned sharing</span></div></div><div className="profile-links">{[['wardrobe', 'My Wardrobe', '12 pieces in your closet'], ['list', 'My Listings', '4 active pieces'], ['rentals', 'My Rentals', '1 upcoming rental'], ['profile', 'Saved Items', `${3} pieces saved`]].map(([key, title, subtitle]) => <button key={key} onClick={() => onPage(key as Page)}><span className="link-icon"><Gem size={16} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><ChevronRight size={17} /></button>)}</div><div className="profile-foot"><button><Settings size={16} /> Settings</button><button>Help & support</button></div></div> }
+function Profile({ me, favorites, onPage, onSignIn, onSignOut }: { me: Me | null; favorites: number; onPage: (page: Page) => void; onSignIn: () => void; onSignOut: () => void }) {
+  const [stats, setStats] = useState<{ listed: number; rentals: number; earned: number } | null>(null)
+  useEffect(() => { if (me) api.me().then((r) => setStats(r.stats)).catch(() => setStats(null)) }, [me])
+  if (!me) return <div className="simple-page profile-page"><div className="empty-rental"><span className="empty-ring"><UserRound size={19} /></span><h2>Your DRAPE profile</h2><p>Sign in to list pieces, book outfits and get notified when someone books yours.</p><button className="text-button" onClick={onSignIn}>Sign in or create an account <ArrowUpRight size={15} /></button></div></div>
+  const [first, ...rest] = me.name.split(' ')
+  const earned = stats ? (stats.earned >= 1000 ? `₹${(stats.earned / 1000).toFixed(1)}k` : rupees(stats.earned)) : '—'
+  return <div className="simple-page profile-page"><div className="profile-header"><div className="profile-avatar">{initials(me.name)}</div><div><span className="section-kicker">YOUR DRAPE PROFILE</span><h1>{first} {rest.length > 0 && <em>{rest.join(' ')}</em>}</h1><p><MapPin size={14} /> Chennai · {me.email}</p></div><button className="icon-button" aria-label="Settings"><Settings size={18} /></button></div><div className="stats"><div><strong>{stats ? String(stats.listed).padStart(2, '0') : '—'}</strong><span>Items listed</span></div><div><strong>{stats ? String(stats.rentals).padStart(2, '0') : '—'}</strong><span>Rentals</span></div><div><strong>{earned}</strong><span>Earned sharing</span></div></div><div className="profile-links">{([['rentals', 'My Rentals', stats ? `${stats.rentals} ${stats.rentals === 1 ? 'booking' : 'bookings'}` : 'Your bookings'], ['list', 'List a piece', stats ? `${stats.listed} ${stats.listed === 1 ? 'piece' : 'pieces'} listed so far` : 'Earn from your wardrobe'], ['explore', 'Saved Items', `${favorites} ${favorites === 1 ? 'piece' : 'pieces'} saved`], ['wardrobe', 'My Wardrobe', 'Plan looks from what you own']] as [Page, string, string][]).map(([key, title, subtitle]) => <button key={title} onClick={() => onPage(key)}><span className="link-icon"><Gem size={16} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><ChevronRight size={17} /></button>)}</div><div className="profile-foot"><button><Settings size={16} /> Settings</button><button>Help & support</button><button onClick={onSignOut}><UserRound size={16} /> Sign out</button></div></div>
+}
+
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '·'
+
+function timeAgo(iso: string) {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  return hours < 24 ? `${hours} h ago` : formatDate(iso.slice(0, 10))
+}
+
+function NotificationsPanel({ items, onOpen, onClose }: { items: AppNotification[]; onOpen: (listingId: string) => void; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return <div className="notifications-panel" role="dialog" aria-label="Notifications"><div className="ai-response-head"><span className="ai-avatar"><Bell size={13} /></span><span>NOTIFICATIONS</span><button className="response-label" onClick={onClose} aria-label="Close notifications"><X size={14} /></button></div>
+    {items.length === 0 && <p className="notification-empty">No notifications yet. When someone books one of your pieces, you’ll see it here with their contact.</p>}
+    {items.map((n) => n.booking && <button className={`notification-item ${n.read_at ? '' : 'unread'}`} key={n.id} onClick={() => onOpen(n.booking!.listing.id)}>
+      <img src={n.booking.listing.image_url} alt="" />
+      <span><strong>{n.booking.borrower_name} booked your {n.booking.listing.title}</strong>
+        <small>{formatRange(n.booking.start_date, n.booking.end_date)} · {rupees(n.booking.advance)} advance paid · {rupees(n.booking.total - n.booking.advance)} due at pickup</small>
+        <small>Contact: {n.booking.borrower_contact}</small>
+        <small className="notification-time">{timeAgo(n.created_at)}</small></span>
+    </button>)}
+  </div>
+}
+
+function AuthPage({ reason, onDone, onCancel }: { reason: string; onDone: (name: string) => void; onCancel: () => void }) {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [status, setStatus] = useState<{ busy: boolean; error?: string; info?: string }>({ busy: false })
+  const friendly = (message: string) => /invalid login/i.test(message) ? 'Wrong email or password.' : /already registered/i.test(message) ? 'That email already has an account — sign in instead.' : /rate limit/i.test(message) ? 'Too many attempts — wait a minute and try again.' : message
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!supabase) { setStatus({ busy: false, error: 'Sign-in isn’t configured on this deployment.' }); return }
+    const email = form.email.trim()
+    if (mode === 'signup' && !form.name.trim()) { setStatus({ busy: false, error: 'Add your name so owners know who’s booking.' }); return }
+    if (form.password.length < 6) { setStatus({ busy: false, error: 'Passwords need at least 6 characters.' }); return }
+    setStatus({ busy: true })
+    if (mode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({ email, password: form.password, options: { data: { name: form.name.trim() } } })
+      if (error) return setStatus({ busy: false, error: friendly(error.message) })
+      if (!data.session) return setStatus({ busy: false, info: 'Check your inbox to confirm your email, then sign in here.' })
+      return onDone(form.name.trim().split(' ')[0])
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: form.password })
+    if (error) return setStatus({ busy: false, error: friendly(error.message) })
+    onDone(String(data.user?.user_metadata?.name ?? email.split('@')[0]).split(' ')[0])
+  }
+  return <div className="app-shell"><div className="simple-page auth-page"><button className="back-button" onClick={onCancel}><ArrowLeft size={16} /> Back</button><div className="page-intro compact"><div><span className="section-kicker">{reason.toUpperCase()}</span><h1>{mode === 'signin' ? <>Welcome <em>back</em></> : <>Join <em>DRAPE</em></>}</h1><p>{mode === 'signin' ? 'Sign in to book pieces, list your own and get notified.' : 'One account to borrow nearby and earn from your wardrobe.'}</p></div></div>
+    <form className="auth-form" onSubmit={submit} noValidate>
+      {mode === 'signup' && <><span className="field-label">Your name</span><div className="explore-search field"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} autoComplete="name" placeholder="Shown to owners and borrowers" aria-label="Your name" /></div></>}
+      <span className="field-label">Email</span><div className="explore-search field"><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} autoComplete="email" placeholder="you@example.com" aria-label="Email" /></div>
+      <span className="field-label">Password</span><div className="explore-search field"><input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="At least 6 characters" aria-label="Password" /></div>
+      {status.error && <p className="field-label booking-error" role="alert">{status.error}</p>}
+      {status.info && <p className="field-label" role="status">{status.info}</p>}
+      <button className="primary-button full-width" type="submit" disabled={status.busy}>{status.busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'} <ArrowUpRight size={17} /></button>
+      <button type="button" className="text-button auth-switch" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setStatus({ busy: false }) }}>{mode === 'signin' ? 'New to DRAPE? Create an account' : 'Already have an account? Sign in'} <ArrowUpRight size={15} /></button>
+    </form></div></div>
+}
 
 function Wardrobe({ onExplore }: { onExplore: () => void }) { return <div className="simple-page wardrobe-page"><div className="page-intro compact"><div><span className="section-kicker">WHAT YOU ALREADY OWN</span><h1>My <em>wardrobe</em></h1><p>Build a look from what is yours, then fill the gaps nearby.</p></div></div><div className="wardrobe-summary"><div><strong>12</strong><span>Total pieces</span></div><div><strong>04</strong><span>Outfit ideas</span></div><button className="primary-button" onClick={onExplore}>Build an outfit <ArrowUpRight size={16} /></button></div><div className="wardrobe-grid">{products.slice(0, 4).map((product) => <div className="wardrobe-card" key={product.id}><img src={product.image} alt={product.name} /><div><strong>{product.name}</strong><span>{product.category} · {product.color}</span></div></div>)}</div><div className="demand-note"><Gem size={17} /><div><strong>You already have the trousers and shoes.</strong><p>You only need a blazer to complete your dinner look.</p></div><button className="text-button" onClick={onExplore}>Find nearby <ArrowUpRight size={15} /></button></div></div> }
 

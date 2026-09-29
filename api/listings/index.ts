@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { createListingSchema, occasionSchema } from '../../shared/contracts.js'
+import { requireUser } from '../_lib/auth.js'
 import { embed } from '../_lib/gemini.js'
 import { HttpError, json, readJson, route } from '../_lib/http.js'
 import { isOwnImageUrl } from '../_lib/images.js'
@@ -24,11 +25,13 @@ export const GET = route(async (request) => {
 
 // POST /api/listings → { listing }. The server computes the embedding and the location; the client never sends them.
 export const POST = route(async (request) => {
+  const user = await requireUser(request)
   const input = createListingSchema.parse(await readJson(request))
   if (!isOwnImageUrl(input.image_url)) throw new HttpError(400, 'image_url must come from /api/listings/analyze')
   const [area, embedding] = await Promise.all([getArea(input.area), embed(embeddingText(input), 'RETRIEVAL_DOCUMENT')])
   const { data, error } = await db().from('listings').insert({
     ...input,
+    owner_id: user.id,
     area: area.name,
     location: `SRID=4326;POINT(${area.lng} ${area.lat})`,
     embedding: JSON.stringify(embedding),

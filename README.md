@@ -25,8 +25,12 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
   confirmation. The database has RLS on with no public policies; all access goes through `/api`.
 - **Bookings.** *Book this piece* lets you pick dates (up to 14 days, up to 90 days ahead) and pay a 20% advance
   (minimum ₹50). The rest is paid at pickup. The server recomputes every price, and a Postgres exclusion constraint
-  makes double-booking impossible, even when two people pay at the same moment. There are no accounts, so
-  **My Rentals** shows the bookings made in this browser, using a secret token saved when booking.
+  makes double-booking impossible, even when two people pay at the same moment.
+- **Accounts + notifications.** Supabase Auth (email and password). Publishing and booking need an account; browsing,
+  search and the free contact reveal don't. When someone books, a database trigger creates a notification for the
+  listing's owner **in the same transaction**, so it can't be lost. The owner sees it on the header bell (unread
+  badge) with the borrower's name, dates, amount paid and contact. The API verifies every access token with Supabase
+  and never trusts a user id sent by the browser.
   **Payments are mocked for the demo** (`api/_lib/payments.ts`): no money moves. Replacing that one function with a
   real provider (e.g. a Razorpay order plus signature check) is the only change needed to go live.
 
@@ -42,8 +46,12 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 | `POST /api/search` | `{ query, area, size?, max_price?, reasons? }` → `{ parsed, relaxed, results }` |
 | `POST /api/search/reasons` | Batched "why it fits" for up to 6 results |
 | `GET /api/listings/:id/availability` | Upcoming booked date ranges (no borrower details) |
-| `POST /api/bookings` | Book dates and pay the advance → `{ booking, token }`, or `409` if the dates were just taken |
-| `POST /api/bookings/lookup` | This browser's bookings, by `{ id, token }` pairs (powers My Rentals) |
+| `POST /api/bookings` 🔒 | Book dates and pay the advance → `{ booking }`, or `409` if the dates were just taken |
+| `GET /api/bookings/mine` 🔒 | The signed-in user's bookings (My Rentals) |
+| `GET /api/notifications` 🔒 · `POST /api/notifications/read` 🔒 | The bell: bookings of your pieces, with the borrower's contact |
+| `GET /api/me` 🔒 | Profile + stats (items listed, rentals, earned) |
+
+🔒 = needs `Authorization: Bearer <Supabase access token>`; `POST /api/listings` (publishing) is 🔒 too.
 | `GET /api/health` | Which services are configured |
 
 ## Run it locally
@@ -62,8 +70,12 @@ npm run dev                  # http://localhost:5173 — the dev server also ser
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → **secret** key |
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
 | `OPENAI_API_KEY` | Optional but recommended — search falls back to Gemini without it |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public, for sign-in in the browser. Supabase → Project Settings → API Keys → **Publishable** key |
 
-All keys are server-side only. Never prefix them with `VITE_`. Optional tuning: `GEMINI_VISION_MODEL`,
+In Supabase → Authentication → Sign In / Providers, turn **Confirm email** off for the demo. The free email sender
+only allows a few emails per hour, so otherwise sign-ups wait on a confirmation link.
+
+All other keys are server-side only. Never prefix them with `VITE_`. Optional tuning: `GEMINI_VISION_MODEL`,
 `GEMINI_TEXT_MODEL`, `OPENAI_TEXT_MODEL`, `MATCH_FLOOR` (default `0.68`).
 
 **New database?** Apply `supabase/migrations/*.sql` in order (SQL editor or `supabase db push`).
@@ -76,6 +88,7 @@ All keys are server-side only. Never prefix them with `VITE_`. Optional tuning: 
 | `npm run build` | Type-check and build |
 | `node scripts/verify-prd.mjs <url>` | **Demo-readiness check**: runs all 9 PRD §11 success criteria against a deployment |
 | `node scripts/seed-listings.mjs <manifest.json> [--base <url>]` | Seed listings through the real analyze → publish flow (waits out rate limits) |
+| `node --env-file=.env.local scripts/create-demo-owner.mjs <email> <password> ["Name"]` | Create the shared demo owner and give it every unowned listing, so seeded pieces notify someone |
 
 Deploy: `vercel deploy --prod` (the project is pinned to the `bom1` region, next to the Mumbai database).
 
@@ -86,10 +99,12 @@ Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It shoul
 1. **Hook (20 s).** "How many of you own an outfit you wore exactly once?" Then show the problem stat slide.
 2. **Upload (60 s).** Open **List Item**, then choose a phone photo of a real outfit. Tags appear in about 3 seconds.
    Tweak one chip (add an occasion), set size, ₹/day and pickup area, then **Publish**. It opens the live listing.
+   *(Before the demo, sign in as the demo owner in a second browser window, so the bell is ready.)*
 3. **Search (60 s).** On **AI Stylist**, type "need something for a friend's sangeet, M, under ₹800". Results
    appear in about 2 seconds with distance chips, then a "why it fits" line on each card. Open one, then tap
    **Book this piece**. Pick dates, see the quote (rent, 20% advance, due at pickup), then **Pay advance**. It shows
-   Confirmed with the owner's contact. Open **My Rentals** to show the booking card. Refine with "something less heavy".
+   Confirmed with the owner's contact. Open **My Rentals** to show the booking card. Switch to the owner's window:
+   the **bell** shows the new booking with the borrower's contact. Refine with "something less heavy".
 4. **Fallback (20 s).** Search "bridal lehenga under ₹200" with the area set to Tambaram. The notice explains what was
    relaxed, and real lehengas still show up.
 5. **Business + V1 (20 s).** Rental commission and membership. Next: deposits, ratings, booking, search by photo.
@@ -107,5 +122,5 @@ Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It shoul
 - **Unpublished uploads keep their photo in Storage** (a few MB so far). To see them, run this in the Supabase SQL
   editor:
   `select o.name from storage.objects o left join listings l on l.image_url like '%/' || o.name where o.bucket_id = 'listings' and l.id is null;`
-- **Out of scope for v0 (PRD §3):** accounts, payments, booking calendar, deposits, ratings, in-app chat, returns,
+- **Out of scope for v0 (PRD §3):** real payments, booking calendar, deposits, ratings, in-app chat, returns,
   real geolocation, and search by photo. My Rentals, Profile and Wardrobe are design mock-ups for V1.

@@ -1,26 +1,18 @@
 // Booking rules shared by the UI (to show the quote) and the server (which recomputes it — never trusts the client).
-import { z } from 'zod'
+// Kept free of zod so the browser bundle stays small; the request schema lives in shared/booking-schema.ts.
 
 export const MAX_BOOKING_DAYS = 14
 export const MAX_DAYS_AHEAD = 90
 export const ADVANCE_RATE = 0.2
 export const MIN_ADVANCE = 50
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
-
-export const bookingRequestSchema = z.object({
-  listing_id: z.string().uuid(),
-  start_date: isoDate,
-  end_date: isoDate,
-  borrower_name: z.string().trim().min(1).max(80),
-  borrower_contact: z.string().trim().min(3).max(120),
-  payment_method: z.enum(['upi', 'card']),
-})
-export type BookingRequest = z.infer<typeof bookingRequestSchema>
-
-export const bookingLookupSchema = z.object({
-  bookings: z.array(z.object({ id: z.string().uuid(), token: z.string().min(20).max(200) })).max(50),
-})
+export type BookingRequest = {
+  listing_id: string
+  start_date: string
+  end_date: string
+  borrower_contact: string
+  payment_method: 'upi' | 'card'
+}
 
 export type Booking = {
   id: string
@@ -33,9 +25,11 @@ export type Booking = {
   advance: number
   status: 'confirmed' | 'cancelled'
   payment_ref: string
+  borrower_name?: string
+  borrower_contact?: string
   listing: { title: string; image_url: string; area: string; owner_name: string; owner_contact: string }
 }
-export type BookingResponse = { booking: Booking; token: string }
+export type BookingResponse = { booking: Booking }
 
 // Calendar dates are plain YYYY-MM-DD in India time — no time-of-day, so no timezone drift.
 export function todayInIndia(now = new Date()): string {
