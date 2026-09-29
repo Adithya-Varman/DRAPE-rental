@@ -1,6 +1,6 @@
 // JSON contracts (PRD §7–8). The UI and every /api route validate against these shapes.
 import { z } from 'zod'
-import { CATEGORIES, GENDERS, OCCASIONS, SIZES } from './vocab'
+import { CATEGORIES, GENDERS, OCCASIONS, SIZES } from './vocab.js'
 
 export const categorySchema = z.enum(CATEGORIES)
 export const occasionSchema = z.enum(OCCASIONS)
