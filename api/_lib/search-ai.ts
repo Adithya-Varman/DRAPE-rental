@@ -7,7 +7,8 @@ import { textJson } from './text-llm.js'
 export const PARSER_SYSTEM_PROMPT = `You turn a shopper's message into search filters for a clothing rental marketplace in Chennai, India.
 Return JSON only. Use null for anything the message does not clearly state — never guess.
 
-- occasion: one of ${OCCASIONS.join(', ')}, or null. "sangeet" or "mehendi" → sangeet_mehendi; "job interview" → interview; "college fest/farewell" → college_event.
+- occasion: one of ${OCCASIONS.join(', ')}, or null. "sangeet" or "mehendi" → sangeet_mehendi; "job interview" → interview; "college fest/farewell" → college_event;
+  "rave", "club", "techno night", "EDM" → club_night; "concert", "gig", "music festival" → concert.
 - size: one of ${SIZES.join(', ')}, or null. Only if a size is stated ("M", "medium", "size L", "free size").
 - max_price: integer rupees per day, or null. "under ₹800", "below 800", "800 budget", "max 1k" → 800 / 1000.
 - gender: "women" or "men" only if the message clearly says who it is for ("for my brother", "men's", "for her"), else null.

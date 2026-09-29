@@ -1,11 +1,13 @@
 // The ONLY Vercel Function. The Hobby plan allows 12 functions per deployment, so every /api/* request is rewritten
 // here (vercel.json) and dispatched from this table. Route modules live in api/_routes/ — the leading underscore keeps
 // Vercel from deploying them as separate functions. Local dev (dev/api-plugin.ts) uses this same router.
+import * as adminRetag from './_routes/admin/retag.js'
 import * as areas from './_routes/areas.js'
 import * as bookings from './_routes/bookings/index.js'
 import * as bookingsMine from './_routes/bookings/mine.js'
 import * as health from './_routes/health.js'
 import * as listingAvailability from './_routes/listings/[id]/availability.js'
+import * as listingComplete from './_routes/listings/[id]/complete.js'
 import * as listingContact from './_routes/listings/[id]/contact.js'
 import * as listing from './_routes/listings/[id]/index.js'
 import * as analyze from './_routes/listings/analyze.js'
@@ -28,6 +30,7 @@ export const ROUTES: [pattern: string, module: RouteModule][] = [
   ['/api/listings/:id', listing],
   ['/api/listings/:id/contact', listingContact],
   ['/api/listings/:id/availability', listingAvailability],
+  ['/api/listings/:id/complete', listingComplete],
   ['/api/search', search],
   ['/api/search/reasons', searchReasons],
   ['/api/bookings', bookings],
@@ -35,6 +38,7 @@ export const ROUTES: [pattern: string, module: RouteModule][] = [
   ['/api/notifications', notifications],
   ['/api/notifications/read', notificationsRead],
   ['/api/me', me],
+  ['/api/admin/retag', adminRetag],
 ]
 
 const compiled = ROUTES.map(([pattern, module]) => ({

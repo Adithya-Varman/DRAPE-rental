@@ -34,3 +34,18 @@ describe('single-function API router', () => {
     expect(functions).toEqual(['router.ts'])
   })
 })
+
+describe('admin key check', async () => {
+  const { isAdmin } = await import('../api/_lib/admin.js')
+  const req = (key?: string) => new Request('http://x/', { headers: key ? { 'x-admin-key': key } : {} })
+  it('ignores requests without the header, even when no server key is configured', () => {
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    expect(isAdmin(req())).toBe(false)
+  })
+  it('accepts only the exact server key', () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'sb_secret_example_key'
+    expect(isAdmin(req('sb_secret_example_key'))).toBe(true)
+    expect(isAdmin(req('sb_secret_example_kez'))).toBe(false)
+    expect(isAdmin(req('short'))).toBe(false)
+  })
+})

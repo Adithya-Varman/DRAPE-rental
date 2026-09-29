@@ -3,7 +3,7 @@
 // exercises the same vision tagging, embeddings and validation as the demo.
 //
 // Usage:
-//   node scripts/seed-listings.mjs <manifest.json> [--base http://localhost:5173] [--dry-run]
+//   node --env-file=.env.local scripts/seed-listings.mjs <manifest.json> [--base http://localhost:5173] [--dry-run]
 //
 // Manifest: an array of
 //   { "image": "photos/red-lehenga.jpg" | "https://…", "size": "M", "price_per_day": 800, "area": "Adyar",
@@ -67,7 +67,8 @@ for (const [i, item] of manifest.entries()) {
     }
     const created = await fetch(`${base}/api/listings`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      // Publishing needs an account; seeding uses the server key instead (run with --env-file=.env.local).
+      headers: { 'content-type': 'application/json', ...(process.env.SUPABASE_SERVICE_ROLE_KEY ? { 'x-admin-key': process.env.SUPABASE_SERVICE_ROLE_KEY } : {}) },
       body: JSON.stringify(listing),
     }).then((r) => r.json())
     if (!created.listing) throw new Error(`publish → ${JSON.stringify(created).slice(0, 200)}`)
