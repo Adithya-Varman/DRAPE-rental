@@ -6,11 +6,13 @@ import {
 import type { Area, Draft, Listing, SearchResponse } from '../shared/contracts'
 import { CATEGORIES, GENDERS, OCCASIONS, SIZES, type Size } from '../shared/vocab'
 import { api, ApiError } from './api'
-import { categoryLabel, downscaleImage, formatKm, kmBetween, occasionLabel, rupees, storage, titleCase } from './lib'
+import { addDays, overlaps, quote, todayInIndia, validateDates, MAX_DAYS_AHEAD, type Booking } from '../shared/booking'
+import { categoryLabel, downscaleImage, formatDate, formatKm, formatRange, kmBetween, occasionLabel, rupees, storage, titleCase } from './lib'
 
 type Page = 'ai' | 'explore' | 'rentals' | 'list' | 'profile' | 'wardrobe'
 // A listing as the UI sees it: from GET /api/listings, GET /api/listings/:id, or a search result.
 type Piece = Listing & { reason?: string | null; similarity?: number }
+type BookingKey = { id: string; token: string }
 type SearchFilters = { size?: Size; max_price?: number }
 type SearchState =
   | { status: 'idle' }
@@ -40,6 +42,8 @@ function App() {
   const [page, setPage] = useState<Page>('ai')
   const [selected, setSelected] = useState<Piece | null>(null)
   const [favorites, setFavorites] = useState<string[]>(() => storage.get('drape:favorites', []))
+  // No accounts in v0: this browser remembers the bookings it made (id + secret token) to show them in My Rentals.
+  const [bookingKeys, setBookingKeys] = useState<BookingKey[]>(() => storage.get('drape:bookings', []))
   const [areas, setAreas] = useState<Area[]>([])
   const [area, setArea] = useState<string>(() => storage.get('drape:area', DEFAULT_AREA))
   const [query, setQuery] = useState('')
@@ -54,6 +58,7 @@ function App() {
   useEffect(() => { api.listings({ limit: 48 }).then(setNearby).catch(() => setNearby([])) }, [])
   useEffect(() => { storage.set('drape:area', area) }, [area])
   useEffect(() => { storage.set('drape:favorites', favorites) }, [favorites])
+  useEffect(() => { storage.set('drape:bookings', bookingKeys) }, [bookingKeys])
 
   const areaCoords = useMemo(() => new Map(areas.map((a) => [a.name, a])), [areas])
   // Distance from the selected area: search results carry it from PostGIS; other listings use area centroids.
@@ -111,10 +116,13 @@ function App() {
   }
 
   const openPiece = (piece: Piece) => { setSelected(piece); window.scrollTo(0, 0) }
+  const openListing = (id: string) => api.listing(id).then(openPiece).catch(() => notify('Couldn’t open that piece right now'))
+  const onBooked = (key: BookingKey) => { setBookingKeys((current) => [...current, key]); notify('Booked! Pickup details are saved in My Rentals') }
+  const viewRentals = () => { setSelected(null); setPage('rentals'); window.scrollTo(0, 0) }
   const searchContext = search.status === 'done' ? search.response.parsed : null
 
   const toastNode = toast && <div className="toast" role="status"><Check size={16} /> {toast}</div>
-  if (selected) return <><ProductDetail piece={selected} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} />{toastNode}</>
+  if (selected) return <><ProductDetail piece={selected} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} onBooked={onBooked} onViewRentals={viewRentals} />{toastNode}</>
 
   const areaOptions = areas.length ? areas.map((a) => a.name) : [area]
   return <div className="app-shell">
@@ -141,7 +149,7 @@ function App() {
     <main className="main-content">
       {page === 'ai' && <Home query={query} setQuery={setQuery} submitPrompt={submitPrompt} search={search} startOver={startOver} retry={() => search.status !== 'idle' && runSearch(search.turns)} filters={filters} setFilters={changeFilters} area={area} nearby={nearby ? byDistance(nearby).slice(0, 4) : null} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} onExplore={() => setPage('explore')} />}
       {page === 'explore' && <Explore area={area} byDistance={byDistance} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} />}
-      {page === 'rentals' && <Rentals onExplore={() => setPage('explore')} />}
+      {page === 'rentals' && <Rentals keys={bookingKeys} onExplore={() => setPage('explore')} onOpen={openListing} />}
       {page === 'list' && <ListItem areas={areaOptions} defaultArea={area} onPublished={(listing) => { notify('Your piece is live — it shows up in search right now'); setNearby((current) => [listing, ...(current ?? [])]); openPiece(listing) }} onError={notify} />}
       {page === 'profile' && <Profile onPage={setPage} />}
       {page === 'wardrobe' && <Wardrobe onExplore={() => setPage('explore')} />}
@@ -229,8 +237,9 @@ function Explore({ area, byDistance, distanceTo, favorites, toggleFavorite, onSe
   return <div className="explore-page"><div className="page-intro"><div><span className="section-kicker">THE NEARBY EDIT</span><h1>Explore <em>pieces</em></h1><p>Borrow beautifully. Keep things moving.</p></div><div className="explore-search"><Search size={17} /><input value={text} onChange={(event) => setText(event.target.value)} placeholder="Search sarees, blazers, colours..." aria-label="Filter pieces" /></div></div><div className="category-scroll">{occasionChips.map((item) => <button className={chip === item ? 'selected' : ''} key={item} onClick={() => setChip(item)}>{item}</button>)}</div><div className="filter-row"><button><SlidersHorizontal size={15} /> Filters</button><span>{listings === null ? 'Loading pieces…' : `${shown.length} ${shown.length === 1 ? 'piece' : 'pieces'} near ${area}`}</span><button className="sort-button">Sort: Nearest <ChevronDown size={14} /></button></div><div className="explore-grid">{listings === null ? <SkeletonCards count={8} /> : shown.map((piece) => <ProductCard key={piece.id} piece={piece} distance={distanceTo(piece)} favorite={favorites.includes(piece.id)} onFavorite={() => toggleFavorite(piece.id)} onSelect={() => onSelect(piece)} />)}</div>{listings !== null && shown.length === 0 && <div className="empty-state"><Gem size={25} /><h2>{failed ? 'Couldn’t load pieces right now.' : 'Nothing matching nearby yet.'}</h2><p>{failed ? 'Check your connection and try again.' : 'Try a different occasion, or ask the AI Stylist to widen the search.'}</p></div>}</div>
 }
 
-function ProductDetail({ piece: initial, distance, area, context, favorite, onFavorite, onBack }: { piece: Piece; distance: number | null; area: string; context: SearchResponse['parsed'] | null; favorite: boolean; onFavorite: () => void; onBack: () => void }) {
+function ProductDetail({ piece: initial, distance, area, context, favorite, onFavorite, onBack, onBooked, onViewRentals }: { piece: Piece; distance: number | null; area: string; context: SearchResponse['parsed'] | null; favorite: boolean; onFavorite: () => void; onBack: () => void; onBooked: (key: BookingKey) => void; onViewRentals: () => void }) {
   const [piece, setPiece] = useState<Piece>(initial)
+  const [booking, setBooking] = useState(false)
   const [contact, setContact] = useState<{ state: 'hidden' | 'loading' | 'shown' | 'error'; value?: string }>({ state: 'hidden' })
   // Search results carry only the fields needed for cards; load the full listing (colours, owner, formality…).
   useEffect(() => { api.listing(initial.id).then((full) => setPiece((current) => ({ ...full, reason: current.reason, distance_km: current.distance_km }))).catch(() => undefined) }, [initial.id])
@@ -247,16 +256,92 @@ function ProductDetail({ piece: initial, distance, area, context, favorite, onFa
     !context && piece.occasions.length > 0 && `Great for ${piece.occasions.slice(0, 3).map(occasionLabel).join(', ')}`,
   ].filter((reason): reason is string => Boolean(reason))
   const contactHref = contact.value && (/@/.test(contact.value) ? `mailto:${contact.value}` : /^[+\d][\d\s-]{6,}$/.test(contact.value) ? `tel:${contact.value.replace(/[\s-]/g, '')}` : undefined)
-  return <div className="detail-page"><button className="back-button" onClick={onBack}><ArrowLeft size={16} /> {context ? 'Back to results' : 'Back'}</button><div className="detail-layout"><div className="detail-gallery"><img src={piece.image_url} alt={piece.title} /><div className="gallery-caption"><MapPin size={14} /> {km && km !== 'Nearby' ? `${km} from you · ${piece.area}` : `In ${piece.area}`}</div></div><div className="detail-info"><div className="detail-label">{categoryLabel(piece.category).toUpperCase()}{piece.style_tags[0] ? ` · ${piece.style_tags[0].toUpperCase()}` : ''}</div><h1>{piece.title}</h1><div className="detail-price"><strong>{rupees(piece.price_per_day)}</strong> / day</div><p className="detail-description">{piece.description}</p><div className="owner-row"><div className="owner-avatar">{(piece.owner_name ?? '·')[0]}</div><div><strong>{piece.owner_name ?? 'Nearby owner'}</strong><span>Nearby owner · {piece.area}{km && km !== 'Nearby' ? ` · ${km} away` : ''}</span></div><ChevronRight size={17} /></div><div className="detail-actions">
-    {contact.state === 'shown' && contact.value
-      ? (contactHref ? <a className="primary-button" href={contactHref}>{contact.value} <ArrowUpRight size={17} /></a> : <span className="primary-button">{contact.value}</span>)
-      : <button className="primary-button" onClick={revealContact} disabled={contact.state === 'loading'}>{contact.state === 'loading' ? 'Revealing…' : contact.state === 'error' ? 'Couldn’t load — try again' : 'Show contact'} <ArrowUpRight size={17} /></button>}
+  return <div className="detail-page"><button className="back-button" onClick={onBack}><ArrowLeft size={16} /> {context ? 'Back to results' : 'Back'}</button><div className="detail-layout"><div className="detail-gallery"><img src={piece.image_url} alt={piece.title} /><div className="gallery-caption"><MapPin size={14} /> {km && km !== 'Nearby' ? `${km} from you · ${piece.area}` : `In ${piece.area}`}</div></div><div className="detail-info"><div className="detail-label">{categoryLabel(piece.category).toUpperCase()}{piece.style_tags[0] ? ` · ${piece.style_tags[0].toUpperCase()}` : ''}</div><h1>{piece.title}</h1><div className="detail-price"><strong>{rupees(piece.price_per_day)}</strong> / day</div><p className="detail-description">{piece.description}</p><div className="owner-row" role="button" tabIndex={0} aria-label="Show the owner's contact" onClick={() => contact.state !== 'shown' && contact.state !== 'loading' && revealContact()} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && contact.state !== 'shown') { event.preventDefault(); revealContact() } }}><div className="owner-avatar">{(piece.owner_name ?? '·')[0]}</div><div><strong>{piece.owner_name ?? 'Nearby owner'}</strong>
+      <span>{contact.state === 'shown' && contact.value ? (contactHref ? <a href={contactHref} onClick={(event) => event.stopPropagation()}>{contact.value}</a> : contact.value) : contact.state === 'loading' ? 'Revealing contact…' : contact.state === 'error' ? 'Couldn’t load contact — tap to retry' : <>Nearby owner · {piece.area}{km && km !== 'Nearby' ? ` · ${km} away` : ''} · Tap to show contact</>}</span></div><ChevronRight size={17} /></div><div className="detail-actions">
+    <button className="primary-button" onClick={() => setBooking(true)} aria-expanded={booking}>Book this piece <ArrowUpRight size={17} /></button>
     <button className={`save-button ${favorite ? 'saved' : ''}`} onClick={onFavorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /> {favorite ? 'Saved' : 'Save'}</button></div>
+    {booking && <BookingPanel piece={piece} onBooked={onBooked} onViewRentals={onViewRentals} />}
     {reasons.length > 0 && <div className="why-match"><div className="why-title"><Gem size={16} /> Why this matches you</div>{reasons.map((reason) => <div className="match-row" key={reason}><Check size={14} />{reason}</div>)}</div>}
     <div className="attributes"><h3>The details</h3><div className="attribute-grid">{[['Colour', piece.colors?.length ? piece.colors.map(titleCase).join(', ') : '—'], ['Size', piece.size === 'FREE' ? 'Free size' : piece.size], ['Category', categoryLabel(piece.category)], ['Occasion', piece.occasions.map(occasionLabel).join(', ') || '—'], ['Style', piece.style_tags.slice(0, 3).map(titleCase).join(', ') || '—'], ['Formality', piece.formality ? `${piece.formality} / 5` : '—']].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></div></div></div></div>
 }
 
-function Rentals({ onExplore }: { onExplore: () => void }) { return <div className="simple-page"><div className="page-intro compact"><div><span className="section-kicker">YOUR CLOSET, IN MOTION</span><h1>My <em>rentals</em></h1><p>Everything you have borrowed, in one place.</p></div></div><div className="tabs"><button className="active">Upcoming <span>1</span></button><button>Active</button><button>Past</button></div><div className="rental-card"><img src={products[1].image} alt={products[1].name} /><div className="rental-body"><span className="status-pill"><span /> Confirmed</span><h2>{products[1].name}</h2><div className="rental-details"><div><span>Pickup</span><strong>Tomorrow · 4:00 PM</strong></div><div><span>Return</span><strong>Sunday · 6:00 PM</strong></div><div><span>Location</span><strong>Adyar, Chennai</strong></div></div><button className="outline-button">View details <ArrowUpRight size={15} /></button></div></div><div className="empty-rental"><span className="empty-ring"><Gem size={19} /></span><h2>Your next look is nearby.</h2><p>Find something special to borrow for your next plan.</p><button className="text-button" onClick={onExplore}>Explore nearby pieces <ArrowUpRight size={15} /></button></div></div> }
+function BookingPanel({ piece, onBooked, onViewRentals }: { piece: Piece; onBooked: (key: BookingKey) => void; onViewRentals: () => void }) {
+  const today = todayInIndia()
+  const [booked, setBooked] = useState<{ start_date: string; end_date: string }[]>([])
+  const saved = storage.get('drape:borrower', { name: '', contact: '' })
+  const [form, setForm] = useState({ start: '', end: '', name: saved.name, contact: saved.contact, method: 'upi' as 'upi' | 'card' })
+  const [status, setStatus] = useState<{ state: 'editing' | 'paying' | 'error'; message?: string } | { state: 'done'; booking: Booking }>({ state: 'editing' })
+  useEffect(() => { api.availability(piece.id).then(setBooked).catch(() => setBooked([])) }, [piece.id])
+
+  if (status.state === 'done') {
+    const { booking } = status
+    const contact = booking.listing.owner_contact
+    const href = /@/.test(contact) ? `mailto:${contact}` : /^[+\d][\d\s-]{6,}$/.test(contact) ? `tel:${contact.replace(/[\s-]/g, '')}` : undefined
+    return <div className="why-match booking-panel" aria-live="polite"><span className="status-pill"><span /> Confirmed</span>
+      <div className="why-title booking-title"><Check size={16} /> You’re booked for {formatRange(booking.start_date, booking.end_date)}</div>
+      <div className="match-row"><Check size={14} />Advance paid: {rupees(booking.advance)} · ref {booking.payment_ref}</div>
+      <div className="match-row"><Check size={14} />Pay {rupees(booking.total - booking.advance)} to {booking.listing.owner_name} at pickup in {booking.listing.area}</div>
+      <div className="detail-actions booking-actions">{href ? <a className="primary-button" href={href}>Contact {booking.listing.owner_name}: {contact} <ArrowUpRight size={17} /></a> : <span className="primary-button">{contact}</span>}<button className="outline-button" onClick={onViewRentals}>View in My Rentals <ArrowUpRight size={15} /></button></div>
+    </div>
+  }
+
+  const datesChosen = Boolean(form.start && form.end)
+  const dateProblem = datesChosen ? validateDates(form.start, form.end, today) ?? (booked.some((b) => overlaps(b, { start_date: form.start, end_date: form.end })) ? 'Those dates overlap an existing booking.' : null) : null
+  const price = datesChosen && !dateProblem ? quote(piece.price_per_day, form.start, form.end) : null
+  const ready = price && form.name.trim() && form.contact.trim().length >= 3 && status.state !== 'paying'
+
+  const pay = async () => {
+    if (!ready) return
+    setStatus({ state: 'paying' })
+    try {
+      const { booking, token } = await api.book({ listing_id: piece.id, start_date: form.start, end_date: form.end, borrower_name: form.name.trim(), borrower_contact: form.contact.trim(), payment_method: form.method })
+      storage.set('drape:borrower', { name: form.name.trim(), contact: form.contact.trim() })
+      onBooked({ id: booking.id, token })
+      setStatus({ state: 'done', booking })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) api.availability(piece.id).then(setBooked).catch(() => undefined)
+      setStatus({ state: 'error', message: error instanceof ApiError ? error.message : 'Payment didn’t go through. Please try again.' })
+    }
+  }
+
+  return <div className="why-match booking-panel"><div className="why-title booking-title"><Gem size={16} /> Book this piece</div>
+    {booked.length > 0 && <div className="match-row booked-row">Already booked: {booked.map((b) => formatRange(b.start_date, b.end_date)).join(', ')}</div>}
+    <div className="chip-row booking-dates">
+      <label><span className="field-label">Pickup</span><div className="explore-search field"><input type="date" value={form.start} min={today} max={addDays(today, MAX_DAYS_AHEAD)} onChange={(event) => setForm({ ...form, start: event.target.value, end: form.end && form.end >= event.target.value ? form.end : event.target.value })} aria-label="Pickup date" /></div></label>
+      <label><span className="field-label">Return</span><div className="explore-search field"><input type="date" value={form.end} min={form.start || today} max={addDays(form.start || today, 13)} onChange={(event) => setForm({ ...form, end: event.target.value })} aria-label="Return date" /></div></label>
+    </div>
+    {dateProblem && <p className="field-label booking-error">{dateProblem}</p>}
+    <span className="field-label">Your name</span><div className="explore-search field"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="So the owner knows who’s coming" aria-label="Your name" /></div>
+    <span className="field-label">Your phone or email</span><div className="explore-search field"><input value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value })} placeholder="Shared with the owner for pickup" aria-label="Your phone or email" /></div>
+    {price && <div className="attribute-grid booking-quote">
+      <div><span>Rent · {price.days} {price.days === 1 ? 'day' : 'days'} × {rupees(piece.price_per_day)}</span><strong>{rupees(price.total)}</strong></div>
+      <div><span>Advance now (20%)</span><strong>{rupees(price.advance)}</strong></div>
+      <div><span>Due at pickup</span><strong>{rupees(price.due_at_pickup)}</strong></div>
+      <div><span>Pickup</span><strong>{piece.area}, {formatDate(form.start)}</strong></div>
+    </div>}
+    <span className="field-label">Pay with</span><ToggleChips single options={[['upi', 'UPI'], ['card', 'Card']]} selected={[form.method]} onChange={([method]) => method && setForm({ ...form, method: method as 'upi' | 'card' })} />
+    <button className="primary-button full-width" disabled={!ready} onClick={pay}>{status.state === 'paying' ? 'Processing payment…' : price ? `Pay ${rupees(price.advance)} advance` : 'Choose your dates'} <ArrowUpRight size={17} /></button>
+    {status.state === 'error' && <p className="field-label booking-error" role="alert">{status.message}</p>}
+    <p className="field-label">Demo payment — no real money moves. The owner’s contact appears once you’re booked.</p>
+  </div>
+}
+
+function Rentals({ keys, onExplore, onOpen }: { keys: BookingKey[]; onExplore: () => void; onOpen: (listingId: string) => void }) {
+  const [bookings, setBookings] = useState<Booking[] | null>(null)
+  const [tab, setTab] = useState<'upcoming' | 'active' | 'past'>('upcoming')
+  useEffect(() => { if (keys.length === 0) { setBookings([]); return } api.myBookings(keys).then(setBookings).catch(() => setBookings([])) }, [keys])
+  const today = todayInIndia()
+  const groups = {
+    upcoming: (bookings ?? []).filter((b) => b.start_date > today),
+    active: (bookings ?? []).filter((b) => b.start_date <= today && b.end_date >= today),
+    past: (bookings ?? []).filter((b) => b.end_date < today).reverse(),
+  }
+  const tabs: [typeof tab, string][] = [['upcoming', 'Upcoming'], ['active', 'Active'], ['past', 'Past']]
+  return <div className="simple-page"><div className="page-intro compact"><div><span className="section-kicker">YOUR CLOSET, IN MOTION</span><h1>My <em>rentals</em></h1><p>Everything you have borrowed, in one place.</p></div></div><div className="tabs">{tabs.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{groups[key].length > 0 && <span>{groups[key].length}</span>}</button>)}</div>
+    {bookings === null && <div className="rental-card is-loading" aria-hidden="true"><div className="rental-body"><span className="status-pill">Loading your bookings…</span></div></div>}
+    {groups[tab].map((b) => <div className="rental-card" key={b.id}><img src={b.listing.image_url} alt={b.listing.title} /><div className="rental-body"><span className="status-pill"><span /> {b.status === 'confirmed' ? (tab === 'past' ? 'Returned' : tab === 'active' ? 'With you now' : 'Confirmed') : 'Cancelled'}</span><h2>{b.listing.title}</h2><div className="rental-details"><div><span>Pickup</span><strong>{formatDate(b.start_date)}</strong></div><div><span>Return</span><strong>{formatDate(b.end_date)}</strong></div><div><span>Location</span><strong>{b.listing.area}, Chennai</strong></div><div><span>Owner</span><strong>{b.listing.owner_name} · {b.listing.owner_contact}</strong></div><div><span>Paid / due</span><strong>{rupees(b.advance)} / {rupees(b.total - b.advance)}</strong></div></div><button className="outline-button" onClick={() => onOpen(b.listing_id)}>View details <ArrowUpRight size={15} /></button></div></div>)}
+    <div className="empty-rental"><span className="empty-ring"><Gem size={19} /></span><h2>{bookings !== null && groups[tab].length === 0 ? (tab === 'upcoming' ? 'No upcoming rentals yet.' : tab === 'active' ? 'Nothing with you right now.' : 'No past rentals yet.') : 'Your next look is nearby.'}</h2><p>Find something special to borrow for your next plan.</p><button className="text-button" onClick={onExplore}>Explore nearby pieces <ArrowUpRight size={15} /></button></div></div>
+}
 
 const EMPTY_DRAFT: Draft = { title: '', category: 'other', gender: 'women', occasions: [], style_tags: [], colors: [], formality: 3, description: '' }
 type UploadPhase = 'empty' | 'analyzing' | 'ready' | 'manual' | 'not_clothing' | 'failed'

@@ -21,8 +21,14 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 - **Fallback ladder.** If a search has no good match, DRAPE searches 10 km → 25 km → without the budget → anywhere,
   and says exactly what it relaxed ("No good match under ₹800 near Adyar, so here are options up to ₹1,200 within 25 km").
 - **Human in the loop.** Uploaded photos get AI-drafted tags that the lister edits before publishing.
-- **Contact stays private.** Owner contact is only returned by `/api/listings/:id/contact`, when someone taps
-  *Show contact*. The database has RLS on with no public policies; all access goes through `/api`.
+- **Contact stays private.** Owner contact is only returned when someone taps the owner row, or in a booking
+  confirmation. The database has RLS on with no public policies; all access goes through `/api`.
+- **Bookings.** *Book this piece* lets you pick dates (up to 14 days, up to 90 days ahead) and pay a 20% advance
+  (minimum ₹50). The rest is paid at pickup. The server recomputes every price, and a Postgres exclusion constraint
+  makes double-booking impossible, even when two people pay at the same moment. There are no accounts, so
+  **My Rentals** shows the bookings made in this browser, using a secret token saved when booking.
+  **Payments are mocked for the demo** (`api/_lib/payments.ts`): no money moves. Replacing that one function with a
+  real provider (e.g. a Razorpay order plus signature check) is the only change needed to go live.
 
 ### API
 
@@ -35,6 +41,9 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 | `POST /api/listings` | Publish an edited draft (server computes embedding + location) |
 | `POST /api/search` | `{ query, area, size?, max_price?, reasons? }` → `{ parsed, relaxed, results }` |
 | `POST /api/search/reasons` | Batched "why it fits" for up to 6 results |
+| `GET /api/listings/:id/availability` | Upcoming booked date ranges (no borrower details) |
+| `POST /api/bookings` | Book dates and pay the advance → `{ booking, token }`, or `409` if the dates were just taken |
+| `POST /api/bookings/lookup` | This browser's bookings, by `{ id, token }` pairs (powers My Rentals) |
 | `GET /api/health` | Which services are configured |
 
 ## Run it locally
@@ -79,7 +88,8 @@ Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It shoul
    Tweak one chip (add an occasion), set size, ₹/day and pickup area, then **Publish**. It opens the live listing.
 3. **Search (60 s).** On **AI Stylist**, type "need something for a friend's sangeet, M, under ₹800". Results
    appear in about 2 seconds with distance chips, then a "why it fits" line on each card. Open one, then tap
-   **Show contact**. Refine with "something less heavy".
+   **Book this piece**. Pick dates, see the quote (rent, 20% advance, due at pickup), then **Pay advance**. It shows
+   Confirmed with the owner's contact. Open **My Rentals** to show the booking card. Refine with "something less heavy".
 4. **Fallback (20 s).** Search "bridal lehenga under ₹200" with the area set to Tambaram. The notice explains what was
    relaxed, and real lehengas still show up.
 5. **Business + V1 (20 s).** Rental commission and membership. Next: deposits, ratings, booking, search by photo.
