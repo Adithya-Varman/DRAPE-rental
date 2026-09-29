@@ -41,11 +41,11 @@ vi.mock('../api/_lib/supabase', async (orig) => ({
   ...(await orig<typeof import('../api/_lib/supabase')>()),
   db: () => Object.assign(fake.client, { from: (table: string) => { fake.calls.push(['from', table]); if (table === 'listings') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: listingRow, error: null }) }) }) }; return fake.client } }),
 }))
-const { POST: book } = await import('../api/bookings/index.js')
-const { GET: mine } = await import('../api/bookings/mine.js')
-const { GET: notifications } = await import('../api/notifications/index.js')
-const { POST: markRead } = await import('../api/notifications/read.js')
-const { POST: createListing } = await import('../api/listings/index.js')
+const { POST: book } = await import('../api/_routes/bookings/index.js')
+const { GET: mine } = await import('../api/_routes/bookings/mine.js')
+const { GET: notifications } = await import('../api/_routes/notifications/index.js')
+const { POST: markRead } = await import('../api/_routes/notifications/read.js')
+const { POST: createListing } = await import('../api/_routes/listings/index.js')
 
 const LISTING = '6f1c2a4e-9b1d-4c3e-8f7a-1234567890ab'
 const start = addDays(todayInIndia(), 5)

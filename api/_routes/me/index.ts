@@ -1,6 +1,6 @@
-import { requireUser } from '../_lib/auth.js'
-import { json, route } from '../_lib/http.js'
-import { db } from '../_lib/supabase.js'
+import { requireUser } from '../../_lib/auth.js'
+import { json, route } from '../../_lib/http.js'
+import { db } from '../../_lib/supabase.js'
 
 // GET /api/me → the signed-in user's profile and Profile-page stats.
 export const GET = route(async (request) => {

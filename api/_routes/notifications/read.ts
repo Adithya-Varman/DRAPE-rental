@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { requireUser } from '../_lib/auth.js'
-import { json, readJson, route } from '../_lib/http.js'
-import { db } from '../_lib/supabase.js'
+import { requireUser } from '../../_lib/auth.js'
+import { json, readJson, route } from '../../_lib/http.js'
+import { db } from '../../_lib/supabase.js'
 
 const body = z.object({ ids: z.array(z.string().uuid()).max(100).optional() })
 

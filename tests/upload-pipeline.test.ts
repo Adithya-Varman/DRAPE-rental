@@ -20,8 +20,8 @@ vi.mock('../api/_lib/gemini', async (orig) => ({ ...(await orig<typeof import('.
 
 const { sniffImage, isOwnImageUrl } = await import('../api/_lib/images')
 const { normalizeVision, embeddingText } = await import('../api/_lib/vision')
-const { POST: analyze } = await import('../api/listings/analyze')
-const { POST: create } = await import('../api/listings/index')
+const { POST: analyze } = await import('../api/_routes/listings/analyze')
+const { POST: create } = await import('../api/_routes/listings/index')
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0])
 const draft = {

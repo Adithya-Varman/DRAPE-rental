@@ -1,6 +1,6 @@
-import { todayInIndia } from '../../../shared/booking.js'
-import { json, route } from '../../_lib/http.js'
-import { db } from '../../_lib/supabase.js'
+import { todayInIndia } from '../../../../shared/booking.js'
+import { json, route } from '../../../_lib/http.js'
+import { db } from '../../../_lib/supabase.js'
 import { listingIdFrom } from './index.js'
 
 // GET /api/listings/:id/availability → { booked: [{ start_date, end_date }] } — upcoming confirmed bookings only,

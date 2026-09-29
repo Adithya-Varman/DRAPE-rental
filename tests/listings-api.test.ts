@@ -7,9 +7,9 @@ vi.mock('../api/_lib/supabase', async (importOriginal) => {
   return { ...actual, db: () => fake.client }
 })
 
-const { GET: listListings } = await import('../api/listings/index')
-const { GET: getListing } = await import('../api/listings/[id]/index')
-const { GET: getContact } = await import('../api/listings/[id]/contact')
+const { GET: listListings } = await import('../api/_routes/listings/index')
+const { GET: getListing } = await import('../api/_routes/listings/[id]/index')
+const { GET: getContact } = await import('../api/_routes/listings/[id]/contact')
 const { PUBLIC_LISTING_COLUMNS } = await import('../api/_lib/supabase')
 
 const ID = '6f1c2a4e-9b1d-4c3e-8f7a-1234567890ab'

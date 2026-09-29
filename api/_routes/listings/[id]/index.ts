@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { HttpError, json, route } from '../../_lib/http.js'
-import { db, PUBLIC_LISTING_COLUMNS } from '../../_lib/supabase.js'
+import { HttpError, json, route } from '../../../_lib/http.js'
+import { db, PUBLIC_LISTING_COLUMNS } from '../../../_lib/supabase.js'
 
 export function listingIdFrom(request: Request): string {
   const segments = new URL(request.url).pathname.split('/').filter(Boolean) // ['api','listings',id,...]

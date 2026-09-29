@@ -1,10 +1,10 @@
-import { bookingRequestSchema } from '../../shared/booking-schema.js'
-import { quote, validateDates, type BookingResponse } from '../../shared/booking.js'
-import { requireUser } from '../_lib/auth.js'
-import { BOOKING_COLUMNS, toBooking } from '../_lib/bookings.js'
-import { HttpError, json, readJson, route } from '../_lib/http.js'
-import { chargeAdvance } from '../_lib/payments.js'
-import { db } from '../_lib/supabase.js'
+import { bookingRequestSchema } from '../../../shared/booking-schema.js'
+import { quote, validateDates, type BookingResponse } from '../../../shared/booking.js'
+import { requireUser } from '../../_lib/auth.js'
+import { BOOKING_COLUMNS, toBooking } from '../../_lib/bookings.js'
+import { HttpError, json, readJson, route } from '../../_lib/http.js'
+import { chargeAdvance } from '../../_lib/payments.js'
+import { db } from '../../_lib/supabase.js'
 
 // POST /api/bookings (signed in) → { booking }. Price, advance and dates are all recomputed and checked here; the
 // database's exclusion constraint is the final word on double-booking.

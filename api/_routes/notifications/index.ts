@@ -1,6 +1,6 @@
-import { requireUser } from '../_lib/auth.js'
-import { json, route } from '../_lib/http.js'
-import { db } from '../_lib/supabase.js'
+import { requireUser } from '../../_lib/auth.js'
+import { json, route } from '../../_lib/http.js'
+import { db } from '../../_lib/supabase.js'
 
 // GET /api/notifications → { notifications[], unread } for the signed-in user (the header bell). Owners see who
 // booked, when, what was paid, and the borrower's contact so they can arrange pickup.
