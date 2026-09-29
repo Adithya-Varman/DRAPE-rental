@@ -28,7 +28,8 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | 4 Frontend integration | ✅ merged (#5) |
 | 5 Seed data, QA & demo | ✅ merged (#6) — 9/9 PRD success criteria pass live (`scripts/verify-prd.mjs`) |
 | 6 Bookings (post-PRD) | ✅ merged (#7) — book dates, mock 20% advance, contact on confirmation, My Rentals |
-| 7 Accounts + owner notifications | ✅ merged (#8) — Supabase Auth, owned listings/bookings, bell notifications, real Profile |
+| 7 Accounts + owner notifications | ✅ merged (#8) — Supabase Auth, owned listings/bookings, bell notifications, real Profile. ⏳ Signed-in end-to-end check still to do by a person |
+| 8 Streetwear, bottoms, outfits | 🟡 merged (#9), partly done — vocabulary, 31 new pieces, re-tagging, `/api/listings/:id/complete`. ⏳ "Complete the look" row on the listing page |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 
@@ -112,6 +113,15 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 - `notifications` rows are written by a trigger on `bookings`, in the same transaction, for the listing's owner (never
   for owners booking their own piece). The header bell shows them with an unread badge and the borrower's contact.
 - Profile shows the real user and stats. `scripts/create-demo-owner.mjs` gives seeded listings a demo owner.
+
+### Phase 8 — Streetwear, bottoms and "Complete the look"
+- Vocabulary: categories `top`, `hoodie`, `jacket`, `jeans`, `trousers`, `shorts`, `co_ord_set`; occasions `club_night`
+  (Club / rave) and `concert` (Concert / gig). Every category has an outfit slot: top, bottom, one-piece or layer.
+- 31 new bottoms and club/gig pieces seeded through the real pipeline (79 listings total); 26 older pieces re-tagged
+  with `scripts/retag-listings.mjs` (via the server-key-only `POST /api/admin/retag`).
+- `GET /api/listings/:id/complete`: complementary-slot pieces that share an occasion and gender, ranked by style
+  similarity with a light nearness bonus, with the piece that completes the outfit listed first (bottoms for a top).
+- **Still to do:** show "Complete the look" as a card row on the listing page, and add a rave suggestion chip.
 
 ## Out of scope (V1 pitch)
 Real payments, deposits, ratings, in-app chat, returns, real geolocation, search-by-photo.

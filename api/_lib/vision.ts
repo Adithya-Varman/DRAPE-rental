@@ -11,8 +11,14 @@ Rules:
 - The photo may be messy: on a hanger, a mirror selfie, on a bed, poor lighting. Describe the garment only — never the person, their body, or the background.
 - category must be exactly one of: ${CATEGORIES.join(', ')}.
   ethnic_jacket means Indian ethnic jackets only (Nehru, bandhgala, embroidered jackets worn over kurtas). A western
-  tailored jacket is blazer; a leather, denim, bomber or other western jacket is other.
+  tailored jacket is blazer; a leather, denim, bomber, puffer or other western jacket is jacket.
+  shirt = button-up shirts. top = t-shirts, polos, crop tops, tank tops, corsets, mesh or sequin tops, blouses worn as
+  western tops. hoodie = hoodies and sweatshirts. jeans = denim trousers; trousers = non-denim pants incl. cargos,
+  leather pants, wide-leg and formal trousers; shorts; skirt. co_ord_set = a matching top + bottom sold together.
+  If the photo shows a whole outfit, tag the single most prominent rentable piece.
 - occasions must only use: ${OCCASIONS.join(', ')}. Pick the 1–4 that genuinely fit.
+  club_night = raves, techno/EDM nights, clubs (edgy, dark, sequin, mesh, leather, cargo, statement streetwear).
+  concert = gigs and music festivals (band tees, denim, shorts, comfortable statement pieces).
 - gender must be one of: ${GENDERS.join(', ')}.
 - title: short and specific, like "Maroon silk saree with gold zari border" (max ~8 words).
 - style_tags: 3–6 short lowercase tags (fabric, embellishment, silhouette, vibe).

@@ -50,6 +50,8 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 | `GET /api/bookings/mine` 🔒 | The signed-in user's bookings (My Rentals) |
 | `GET /api/notifications` 🔒 · `POST /api/notifications/read` 🔒 | The bell: bookings of your pieces, with the borrower's contact |
 | `GET /api/me` 🔒 | Profile + stats (items listed, rentals, earned) |
+| `GET /api/listings/:id/complete` | "Complete the look": pieces that pair with this one (bottoms for a top, layers for a dress…) |
+| `POST /api/admin/retag` 🔑 | Re-run tagging on one listing (server key in `x-admin-key`; used by `scripts/retag-listings.mjs`) |
 
 🔒 = needs `Authorization: Bearer <Supabase access token>`; `POST /api/listings` (publishing) is 🔒 too.
 | `GET /api/health` | Which services are configured |
@@ -87,8 +89,9 @@ All other keys are server-side only. Never prefix them with `VITE_`. Optional tu
 | `npm test` | Unit tests (contracts, routing, upload + search pipelines, fallback ladder, UI helpers) |
 | `npm run build` | Type-check and build |
 | `node scripts/verify-prd.mjs <url>` | **Demo-readiness check**: runs all 9 PRD §11 success criteria against a deployment |
-| `node scripts/seed-listings.mjs <manifest.json> [--base <url>]` | Seed listings through the real analyze → publish flow (waits out rate limits) |
-| `node --env-file=.env.local scripts/create-demo-owner.mjs <email> <password> ["Name"]` | Create the shared demo owner and give it every unowned listing, so seeded pieces notify someone |
+| `node --env-file=.env.local scripts/seed-listings.mjs <manifest.json> [--base <url>]` | Seed listings through the real analyze → publish flow (waits out rate limits) |
+| `node --env-file=.env.local scripts/create-demo-owner.mjs` | Create the demo owner (`owner@drape.demo`, generated password printed once) and give it every unowned listing |
+| `node --env-file=.env.local scripts/retag-listings.mjs [--only cat1,cat2]` | Re-tag listings with the current prompt and vocabulary (run against the local dev server) |
 
 Deploy: `vercel deploy --prod` (the project is pinned to the `bom1` region, next to the Mumbai database).
 
@@ -117,8 +120,11 @@ Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It shoul
   OpenAI when its key is set. When busy, uploads return `429` with a retry time, and the UI shows "try again in N seconds".
 - **Negation isn't understood.** "No sarees" can't exclude sarees, because semantic search has no "not". The
   "why it fits" lines do call out the mismatch.
-- **Seed data** is 48 demo listings: 19 occasion-wear pieces plus 29 from the team's product sheet. Owners are demo
+- **Seed data** is 79 demo listings: occasion wear, 29 pieces from the team's product sheet, and 31 bottoms and
+  club/gig pieces. Owners are demo
   names with `@drape.demo` contacts.
+- **All API routes run as one Vercel Function** (`api/router.ts`), because the Hobby plan allows only 12 per
+  deployment. Add a new route in `api/_routes/` and register it in the router's table; a test fails if you forget.
 - **Unpublished uploads keep their photo in Storage** (a few MB so far). To see them, run this in the Supabase SQL
   editor:
   `select o.name from storage.objects o left join listings l on l.image_url like '%/' || o.name where o.bucket_id = 'listings' and l.id is null;`
