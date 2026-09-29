@@ -1,7 +1,7 @@
-import { searchRequestSchema, type SearchResponse } from '../../shared/contracts.js'
-import { json, readJson, route } from '../_lib/http.js'
-import { explainMatches } from '../_lib/search-ai.js'
-import { REASON_COUNT, runSearch, Timer } from '../_lib/search.js'
+import { searchRequestSchema, type SearchResponse } from '../../../shared/contracts.js'
+import { json, readJson, route } from '../../_lib/http.js'
+import { explainMatches } from '../../_lib/search-ai.js'
+import { REASON_COUNT, runSearch, Timer } from '../../_lib/search.js'
 
 // POST /api/search { query, area, size?, max_price?, reasons? } → { parsed, relaxed, results }
 export const POST = route(async (request) => {

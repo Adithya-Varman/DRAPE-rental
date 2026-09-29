@@ -3,6 +3,7 @@ import type {
   AnalyzeResponse, Area, CreateListingInput, Draft, Listing, ReasonsResponse, SearchRequest, SearchResponse,
 } from '../shared/contracts'
 import type { Booking, BookingRequest, BookingResponse } from '../shared/booking'
+import { accessToken } from './supabase'
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown> = {}) {
@@ -10,10 +11,13 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
+  const token = await accessToken()
+  const headers = new Headers(init.headers)
+  if (token) headers.set('authorization', `Bearer ${token}`)
   try {
-    response = await fetch(path, init)
+    response = await fetch(path, { ...init, headers })
   } catch {
     throw new ApiError(0, 'network', 'You seem to be offline — check your connection and try again.')
   }
@@ -54,5 +58,17 @@ export const api = {
   create: (input: CreateListingInput) => post<{ listing: Listing }>('/api/listings', input).then((r) => r.listing),
   availability: (id: string) => request<{ booked: { start_date: string; end_date: string }[] }>(`/api/listings/${id}/availability`).then((r) => r.booked),
   book: (input: BookingRequest) => post<BookingResponse>('/api/bookings', input),
-  myBookings: (keys: { id: string; token: string }[]) => post<{ bookings: Booking[] }>('/api/bookings/lookup', { bookings: keys }).then((r) => r.bookings),
+  myBookings: () => request<{ bookings: Booking[] }>('/api/bookings/mine').then((r) => r.bookings),
+  me: () => request<{ user: Me; stats: { listed: number; rentals: number; earned: number } }>('/api/me'),
+  notifications: () => request<{ notifications: AppNotification[]; unread: number }>('/api/notifications'),
+  markRead: (ids?: string[]) => post<{ ok: true }>('/api/notifications/read', { ids }),
+}
+
+export type Me = { id: string; email: string; name: string }
+export type AppNotification = {
+  id: string
+  created_at: string
+  read_at: string | null
+  type: 'booking_received'
+  booking: { id: string; start_date: string; end_date: string; days: number; total: number; advance: number; status: string; borrower_name: string; borrower_contact: string; listing: { id: string; title: string; image_url: string; area: string } } | null
 }

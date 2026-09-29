@@ -1,4 +1,4 @@
-import { json, route } from './_lib/http.js'
+import { json, route } from '../_lib/http.js'
 
 export const GET = route(async () => json({
   ok: true,

@@ -1,7 +1,7 @@
-import { reasonsRequestSchema, type ReasonsResponse } from '../../shared/contracts.js'
-import { json, readJson, route } from '../_lib/http.js'
-import { explainMatches } from '../_lib/search-ai.js'
-import { db } from '../_lib/supabase.js'
+import { reasonsRequestSchema, type ReasonsResponse } from '../../../shared/contracts.js'
+import { json, readJson, route } from '../../_lib/http.js'
+import { explainMatches } from '../../_lib/search-ai.js'
+import { db } from '../../_lib/supabase.js'
 
 // POST /api/search/reasons { query, ids } → { reasons: [{ id, reason }] } — one batched call for up to 6 results.
 export const POST = route(async (request) => {

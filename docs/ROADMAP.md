@@ -28,6 +28,7 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | 4 Frontend integration | ✅ merged (#5) |
 | 5 Seed data, QA & demo | ✅ merged (#6) — 9/9 PRD success criteria pass live (`scripts/verify-prd.mjs`) |
 | 6 Bookings (post-PRD) | ✅ merged (#7) — book dates, mock 20% advance, contact on confirmation, My Rentals |
+| 7 Accounts + owner notifications | ✅ merged (#8) — Supabase Auth, owned listings/bookings, bell notifications, real Profile |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 
@@ -105,5 +106,12 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
   confirmation with the owner's contact → **My Rentals** (the existing V1 screen, now real).
 - Payments are mocked behind `chargeAdvance()`; swap in Razorpay to take real money. The free contact reveal stays.
 
+### Phase 7 — Accounts + owner notifications
+- Supabase Auth (email + password); `profiles` filled by a trigger on sign-up. Publishing and booking need an account.
+- `listings.owner_id`, `bookings.borrower_id`; My Rentals is now per account (the Phase 6 per-browser token is retired).
+- `notifications` rows are written by a trigger on `bookings`, in the same transaction, for the listing's owner (never
+  for owners booking their own piece). The header bell shows them with an unread badge and the borrower's contact.
+- Profile shows the real user and stats. `scripts/create-demo-owner.mjs` gives seeded listings a demo owner.
+
 ## Out of scope (V1 pitch)
-Auth, real payments, deposits, ratings, in-app chat, returns, real geolocation, search-by-photo.
+Real payments, deposits, ratings, in-app chat, returns, real geolocation, search-by-photo.

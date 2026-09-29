@@ -13,14 +13,15 @@ vi.mock('../api/_lib/supabase', async (orig) => {
   })
   return { ...actual, db: client, getArea: async (name: string) => { if (name !== 'Adyar') throw new (await import('../api/_lib/http')).HttpError(400, `Unknown area: ${name}`); return { name, lat: 13.0012, lng: 80.2565 } } }
 })
+vi.mock('../api/_lib/auth', () => ({ requireUser: async () => ({ id: 'owner-1', email: 'o@drape.demo', name: 'Owner' }), getUser: async () => null }))
 const vision = vi.fn()
 vi.mock('../api/_lib/vision', async (orig) => ({ ...(await orig<typeof import('../api/_lib/vision')>()), analyzeImage: (...a: unknown[]) => vision(...a) }))
 vi.mock('../api/_lib/gemini', async (orig) => ({ ...(await orig<typeof import('../api/_lib/gemini')>()), embed: async () => Array(768).fill(0.1) }))
 
 const { sniffImage, isOwnImageUrl } = await import('../api/_lib/images')
 const { normalizeVision, embeddingText } = await import('../api/_lib/vision')
-const { POST: analyze } = await import('../api/listings/analyze')
-const { POST: create } = await import('../api/listings/index')
+const { POST: analyze } = await import('../api/_routes/listings/analyze')
+const { POST: create } = await import('../api/_routes/listings/index')
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0])
 const draft = {
@@ -118,6 +119,7 @@ describe('POST /api/listings', () => {
     expect(insert.location).toBe('SRID=4326;POINT(80.2565 13.0012)')
     expect(JSON.parse(insert.embedding as string)).toHaveLength(768)
     expect(insert.owner_contact).toBe('98400 00000')
+    expect(insert.owner_id).toBe('owner-1')
   })
   it('ignores client-supplied embedding/location fields', async () => {
     fake.result = { data: { id: 'new' }, error: null }

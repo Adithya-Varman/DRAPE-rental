@@ -28,34 +28,51 @@ describe('booking rules (shared by UI and server)', () => {
 })
 
 let fake = fakeDb()
-let listingRow: unknown = { id: 'l1', price_per_day: 400 }
+let listingRow: unknown = { id: 'l1', price_per_day: 400, owner_id: 'owner-1' }
+let currentUser: { id: string; email: string; name: string } | null = { id: 'user-1', email: 'asha@drape.demo', name: 'Asha' }
+vi.mock('../api/_lib/auth', async () => {
+  const { HttpError } = await import('../api/_lib/http')
+  return {
+    getUser: async () => currentUser,
+    requireUser: async () => { if (!currentUser) throw new HttpError(401, 'Please sign in first.'); return currentUser },
+  }
+})
 vi.mock('../api/_lib/supabase', async (orig) => ({
   ...(await orig<typeof import('../api/_lib/supabase')>()),
   db: () => Object.assign(fake.client, { from: (table: string) => { fake.calls.push(['from', table]); if (table === 'listings') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: listingRow, error: null }) }) }) }; return fake.client } }),
 }))
-const { POST: book } = await import('../api/bookings/index.js')
-const { POST: lookup } = await import('../api/bookings/lookup.js')
-const { hashToken } = await import('../api/_lib/bookings.js')
+const { POST: book } = await import('../api/_routes/bookings/index.js')
+const { GET: mine } = await import('../api/_routes/bookings/mine.js')
+const { GET: notifications } = await import('../api/_routes/notifications/index.js')
+const { POST: markRead } = await import('../api/_routes/notifications/read.js')
+const { POST: createListing } = await import('../api/_routes/listings/index.js')
 
 const LISTING = '6f1c2a4e-9b1d-4c3e-8f7a-1234567890ab'
 const start = addDays(todayInIndia(), 5)
-const body = { listing_id: LISTING, start_date: start, end_date: addDays(start, 2), borrower_name: 'Asha', borrower_contact: 'asha@drape.demo', payment_method: 'upi' }
+const body = { listing_id: LISTING, start_date: start, end_date: addDays(start, 2), borrower_contact: 'asha@drape.demo', payment_method: 'upi' }
 const post = (fn: (r: Request) => Promise<Response>, data: unknown) => fn(new Request('http://x/', { method: 'POST', body: JSON.stringify(data) }))
 
-beforeEach(() => { fake = fakeDb(); listingRow = { id: 'l1', price_per_day: 400 } })
+beforeEach(() => { fake = fakeDb(); listingRow = { id: 'l1', price_per_day: 400, owner_id: 'owner-1' }; currentUser = { id: 'user-1', email: 'asha@drape.demo', name: 'Asha' } })
 
 describe('POST /api/bookings', () => {
-  it('recomputes price and advance on the server, ignoring client-sent amounts', async () => {
-    fake.result = { data: { id: 'b1', access_token_hash: 'h', listing: {} }, error: null }
-    const res = await post(book, { ...body, total: 1, advance: 1, price_per_day: 1 })
+  it('recomputes price and advance on the server and takes the borrower from the account', async () => {
+    fake.result = { data: { id: 'b1', listing: {} }, error: null }
+    const res = await post(book, { ...body, total: 1, advance: 1, price_per_day: 1, borrower_id: 'someone-else', borrower_name: 'Fake' })
     expect(res.status).toBe(201)
     const insert = fake.calls.find(([m]) => m === 'insert')![1] as Record<string, unknown>
-    expect(insert).toMatchObject({ days: 3, price_per_day: 400, total: 1200, advance: 240 })
+    expect(insert).toMatchObject({ days: 3, price_per_day: 400, total: 1200, advance: 240, borrower_id: 'user-1', borrower_name: 'Asha' })
     expect(String(insert.payment_ref)).toMatch(/^MOCK-UPI-/)
-    const json = await res.json()
-    expect(json.token).toBeTruthy()
-    expect(insert.access_token_hash).toBe(hashToken(json.token))
-    expect(json.booking).not.toHaveProperty('access_token_hash')
+  })
+  it('requires sign-in', async () => {
+    currentUser = null
+    expect((await post(book, body)).status).toBe(401)
+    expect(fake.calls).toHaveLength(0)
+  })
+  it('does not let owners book their own piece', async () => {
+    listingRow = { id: 'l1', price_per_day: 400, owner_id: 'user-1' }
+    const res = await post(book, body)
+    expect(res.status).toBe(400)
+    expect(fake.calls.some(([m]) => m === 'insert')).toBe(false)
   })
   it('turns the database overlap guard into a friendly 409', async () => {
     fake.result = { data: null, error: { code: '23P01', message: 'conflicting key value violates exclusion constraint' } }
@@ -73,14 +90,21 @@ describe('POST /api/bookings', () => {
   })
 })
 
-describe('POST /api/bookings/lookup', () => {
-  it('returns only bookings whose token matches, never the hash', async () => {
-    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-    fake.result = { data: [{ id, access_token_hash: hashToken('right-token-right-token'), listing: {} }], error: null }
-    const ok = await (await post(lookup, { bookings: [{ id, token: 'right-token-right-token' }, { id, token: 'wrong-token-wrong-token' }] })).json()
-    expect(ok.bookings).toHaveLength(1)
-    expect(ok.bookings[0]).not.toHaveProperty('access_token_hash')
-    const denied = await (await post(lookup, { bookings: [{ id, token: 'wrong-token-wrong-token' }] })).json()
-    expect(denied.bookings).toHaveLength(0)
+describe('account-scoped routes', () => {
+  const get = (fn: (r: Request) => Promise<Response>) => fn(new Request('http://x/'))
+  it('401 when signed out', async () => {
+    currentUser = null
+    for (const res of [await get(mine), await get(notifications), await post(markRead, {}), await post(createListing, {})]) expect(res.status).toBe(401)
+  })
+  it('scopes My Rentals to the signed-in borrower', async () => {
+    fake.result = { data: [], error: null }
+    await get(mine)
+    expect(fake.calls).toContainEqual(['eq', 'borrower_id', 'user-1'])
+  })
+  it('scopes notifications to the signed-in user and counts unread', async () => {
+    fake.result = { data: [{ id: 'n1', read_at: null }, { id: 'n2', read_at: '2026-10-01' }], error: null }
+    const res = await get(notifications)
+    expect(fake.calls).toContainEqual(['eq', 'user_id', 'user-1'])
+    expect((await res.json()).unread).toBe(1)
   })
 })
