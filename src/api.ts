@@ -2,6 +2,7 @@
 import type {
   AnalyzeResponse, Area, CreateListingInput, Draft, Listing, ReasonsResponse, SearchRequest, SearchResponse,
 } from '../shared/contracts'
+import type { Booking, BookingRequest, BookingResponse } from '../shared/booking'
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown> = {}) {
@@ -51,4 +52,7 @@ export const api = {
     return result
   },
   create: (input: CreateListingInput) => post<{ listing: Listing }>('/api/listings', input).then((r) => r.listing),
+  availability: (id: string) => request<{ booked: { start_date: string; end_date: string }[] }>(`/api/listings/${id}/availability`).then((r) => r.booked),
+  book: (input: BookingRequest) => post<BookingResponse>('/api/bookings', input),
+  myBookings: (keys: { id: string; token: string }[]) => post<{ bookings: Booking[] }>('/api/bookings/lookup', { bookings: keys }).then((r) => r.bookings),
 }

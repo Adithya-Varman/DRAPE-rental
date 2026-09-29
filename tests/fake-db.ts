@@ -6,7 +6,7 @@ export function fakeDb(result: { data: unknown; error: unknown } = { data: [], e
   const calls: Call[] = []
   const builder: Record<string, unknown> = {}
   const chain = (name: string) => (...args: unknown[]) => { calls.push([name, ...args]); return builder }
-  for (const m of ['from', 'select', 'eq', 'in', 'order', 'limit', 'contains', 'insert', 'rpc']) builder[m] = chain(m)
+  for (const m of ['from', 'select', 'eq', 'in', 'gte', 'order', 'limit', 'contains', 'insert', 'rpc']) builder[m] = chain(m)
   builder.maybeSingle = (...args: unknown[]) => { calls.push(['maybeSingle', ...args]); return Promise.resolve(state.result) }
   builder.single = (...args: unknown[]) => { calls.push(['single', ...args]); return Promise.resolve(state.result) }
   builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => Promise.resolve(state.result).then(resolve, reject)

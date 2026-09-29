@@ -52,3 +52,18 @@ a.primary-button { text-decoration: none; }
 .upload-panel.uploaded img { position: absolute; inset: 0; }
 @media (min-width: 651px) { .listing-flow .upload-panel { position: sticky; top: 24px; } }
 @media (max-width: 650px) { .upload-panel.uploaded { height: 330px; } }
+/* Bookings (Phase 6): the booking panel reuses the why-match box, fields, chips and attribute grid. */
+.booking-panel { margin-top: 24px; }
+.booking-panel .status-pill { margin-bottom: 12px; }
+.booking-title { margin-bottom: 4px; }
+.booking-dates { gap: 12px; margin-top: 4px; }
+.booking-dates label { flex: 1 1 150px; }
+.booking-panel input[type=date] { color-scheme: dark; font-family: 'Manrope', sans-serif; }
+.booking-panel input, .booking-panel .category-scroll button { font-family: 'Manrope', sans-serif; }
+.booking-quote { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.booking-error { color: #f0a3a3; text-transform: none; letter-spacing: .02em; }
+.booked-row { color: #d5bf70; }
+.booking-actions { flex-wrap: wrap; margin-top: 18px; }
+.owner-row { cursor: pointer; }
+.owner-row a { color: var(--lavender-soft); }
+.rental-card.is-loading { animation: drape-pulse 1.4s ease-in-out infinite; }

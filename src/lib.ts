@@ -49,3 +49,8 @@ export const storage = {
     try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* private mode / blocked storage */ }
   },
 }
+
+// "Sat, 10 Oct" from a plain YYYY-MM-DD date (formatted in UTC so the calendar day never shifts).
+export const formatDate = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+export const formatRange = (start: string, end: string) => (start === end ? formatDate(start) : `${formatDate(start)} – ${formatDate(end)}`)

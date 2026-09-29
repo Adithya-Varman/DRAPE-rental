@@ -27,6 +27,7 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | 3 Search pipeline | ✅ merged (#4) |
 | 4 Frontend integration | ✅ merged (#5) |
 | 5 Seed data, QA & demo | ✅ merged (#6) — 9/9 PRD success criteria pass live (`scripts/verify-prd.mjs`) |
+| 6 Bookings (post-PRD) | ✅ merged (#7) — book dates, mock 20% advance, contact on confirmation, My Rentals |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 
@@ -98,5 +99,11 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | Every occasion template shows ≥ 3 real listings | 5 |
 | ≥ 40 listings, ≥ 6 occasions, ≥ 5 areas | 5 |
 
+### Phase 6 — Bookings (added after v0, at the team's request)
+- `bookings` table with a `btree_gist` exclusion constraint so confirmed bookings of one listing can never overlap.
+- Book → dates, name and contact → quote (rent, 20% advance with a ₹50 minimum, due at pickup) → mock payment →
+  confirmation with the owner's contact → **My Rentals** (the existing V1 screen, now real).
+- Payments are mocked behind `chargeAdvance()`; swap in Razorpay to take real money. The free contact reveal stays.
+
 ## Out of scope (V1 pitch)
-Auth, payments, booking calendar, deposits, ratings, in-app chat, returns, real geolocation, search-by-photo.
+Auth, real payments, deposits, ratings, in-app chat, returns, real geolocation, search-by-photo.
