@@ -24,3 +24,31 @@ svg { stroke-width: 1.7; }
 .favorite { border: 1px solid rgba(221, 183, 255, .46); }
 .favorite.is-favorite { background: radial-gradient(circle at 35% 25%, rgba(225, 183, 255, .3), rgba(91, 48, 117, .7)); }
 .status-pill svg, .availability svg, .match-row svg, .demand-note > svg:first-child { filter: drop-shadow(0 0 5px rgba(173, 111, 220, .35)); }
+
+/* ── Wear Once v0 integration: additive rules only, built from the existing tokens. No existing rule above is changed. ── */
+.has-select { position: relative; }
+.overlay-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+.prompt-chip { padding: 8px 12px; }
+.send-button:disabled { opacity: .55; cursor: progress; }
+.mobile-nav .has-select button { width: 100%; }
+.product-card.is-loading .product-image-button, .product-card.is-loading h3 { animation: drape-pulse 1.4s ease-in-out infinite; }
+.product-card.is-loading h3 { width: 70%; border-radius: 4px; background: #19161a; }
+@keyframes drape-pulse { 50% { opacity: .45; } }
+.category-scroll.inline { flex-wrap: wrap; padding: 0; margin-top: 10px; overflow: visible; }
+.category-scroll.inline button { display: inline-flex; align-items: center; gap: 6px; }
+.chip-input { width: 90px; padding: 10px 12px; color: #d8cddc; background: transparent; border: 1px dashed var(--line); border-radius: 20px; font-size: 12px; outline: 0; }
+.field-label { display: block; margin: 18px 0 0; color: #77717c; font: 10px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
+.explore-search.field { width: 100%; margin-top: 8px; }
+.explore-search textarea { width: 100%; min-height: 70px; resize: vertical; color: white; background: transparent; border: 0; outline: 0; font-size: 12px; line-height: 1.6; }
+.form-step input, .form-step textarea, .form-step .category-scroll button, .form-step .suggestion { font-family: 'Manrope', sans-serif; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.upload-overlay.error { color: #f0a3a3; }
+.upload-overlay.busy { color: var(--lavender-soft); }
+.hidden-input { display: none; }
+a.primary-button { text-decoration: none; }
+/* Keep the upload panel at its designed height (the editable tag form makes the row much taller) and let the photo fill it. */
+.listing-flow { align-items: start; }
+.upload-panel.uploaded { height: 420px; }
+.upload-panel.uploaded img { position: absolute; inset: 0; }
+@media (min-width: 651px) { .listing-flow .upload-panel { position: sticky; top: 24px; } }
+@media (max-width: 650px) { .upload-panel.uploaded { height: 330px; } }
