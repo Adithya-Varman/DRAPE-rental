@@ -12,7 +12,21 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
   handlers). This replaces the PRD's Next.js assumption without changing any contract.
 - **Core principle (PRD §5):** size / budget / distance / gender are SQL filters. Occasion / vibe / style is vector
   ranking. The LLM never decides whether an item fits a budget.
-- **Secrets stay server-side.** `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` are only read in `/api`.
+- **Secrets stay server-side.** `GEMINI_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` are only read in `/api`.
+- **AI providers (decided in Phases 2–3):** Gemini `gemini-3.5-flash-lite` tags photos and `gemini-embedding-001` makes the
+  768-d embeddings; OpenAI `gpt-5.4-mini` handles the search-time parser and "why it fits" reasons, with Gemini as an
+  automatic fallback. The split exists because the Gemini free tier allows only 15 requests/minute per model.
+
+## Status
+
+| Phase | State |
+|---|---|
+| 0 Foundation | ✅ merged (#1) |
+| 1 Data layer | ✅ merged (#2) |
+| 2 Upload pipeline | ✅ merged (#3) |
+| 3 Search pipeline | ✅ merged (#4) |
+| 4 Frontend integration | ⏳ next |
+| 5 Seed data, QA & demo | ⏳ needs the team's own garment photos |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 

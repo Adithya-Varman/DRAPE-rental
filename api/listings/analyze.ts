@@ -1,3 +1,4 @@
+import { RateLimitError } from '../_lib/gemini.js'
 import { HttpError, json, route } from '../_lib/http.js'
 import { readImage, removeImage, storeImage } from '../_lib/images.js'
 import { analyzeImage } from '../_lib/vision.js'
@@ -11,6 +12,11 @@ export const POST = route(async (request) => {
     analyzeImage({ mime: image.mime, base64: Buffer.from(image.bytes).toString('base64') }),
   ])
   if (stored.status === 'rejected') throw stored.reason
+  if (vision.status === 'rejected' && vision.reason instanceof RateLimitError) {
+    // Busy, not broken: drop the photo and let the UI say "try again in N seconds".
+    await removeImage(stored.value.path)
+    throw vision.reason
+  }
   if (vision.status === 'rejected') {
     // Keep the photo: the UI falls back to manual tagging with this image (PRD §13).
     console.error('Vision failed after retry:', vision.reason)

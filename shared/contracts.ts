@@ -77,10 +77,19 @@ export const searchRequestSchema = z.object({
   area: z.string().trim().min(1),
   size: sizeSchema.optional(),
   max_price: z.number().int().positive().optional(),
+  // PRD contract returns reasons inline (default). The UI passes false to render results sooner, then calls
+  // POST /api/search/reasons.
+  reasons: z.boolean().optional(),
 })
 export type SearchRequest = z.infer<typeof searchRequestSchema>
 
 export type SearchResult = Listing & { distance_km: number | null; similarity: number; reason: string | null }
 export type SearchResponse = { parsed: ParsedQuery; relaxed: string | null; results: SearchResult[] }
+
+export const reasonsRequestSchema = z.object({
+  query: z.string().trim().min(1).max(500),
+  ids: z.array(z.string().uuid()).min(1).max(6),
+})
+export type ReasonsResponse = { reasons: { id: string; reason: string }[] }
 
 export type Area = { name: string; lat: number; lng: number }

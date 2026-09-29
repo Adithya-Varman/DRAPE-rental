@@ -6,12 +6,18 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 // gemini-3.5-flash-lite with minimal thinking measured ~3 s for vision tagging; the full flash model had
 // multi-second variance (one 82 s outlier), too risky for a live demo. Override per deployment if needed.
-export const TEXT_MODEL = () => process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite'
+// Vision and text use DIFFERENT models on purpose: the free tier caps each model at 15 requests/minute, and a search
+// makes two text calls, so sharing one model would let a few searches block uploads (and vice versa).
 export const VISION_MODEL = () => process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite'
+export const TEXT_MODEL = () => process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite'
 // Locked in hour 0 (PRD §2). Changing this model means re-embedding every listing.
 export const EMBEDDING_MODEL = 'gemini-embedding-001'
 
 export type Part = { text: string } | { inline_data: { mime_type: string; data: string } }
+
+export class RateLimitError extends HttpError {
+  constructor(public retryAfterSeconds: number) { super(429, `AI is busy — try again in ${retryAfterSeconds}s`) }
+}
 
 async function call(model: string, method: string, body: unknown, timeoutMs: number): Promise<any> {
   const response = await fetch(`${BASE}/${model}:${method}`, {
@@ -21,6 +27,10 @@ async function call(model: string, method: string, body: unknown, timeoutMs: num
     signal: AbortSignal.timeout(timeoutMs),
   })
   const data = await response.json().catch(() => ({}))
+  if (response.status === 429) {
+    const hint = /retry in ([\d.]+)s/i.exec(data?.error?.message ?? '')
+    throw new RateLimitError(Math.ceil(Number(hint?.[1] ?? 30)))
+  }
   if (!response.ok) throw new HttpError(502, `Gemini ${method} failed: ${data?.error?.message ?? response.status}`)
   return data
 }
@@ -62,9 +72,11 @@ export async function embed(text: string, taskType: 'RETRIEVAL_DOCUMENT' | 'RETR
   return values as number[]
 }
 
-// Run a generate+validate step, retrying once on any failure (PRD §13: "structured output + zod + one retry").
+// Run a generate+validate step, retrying once on failure (PRD §13: "structured output + zod + one retry").
+// Rate limits are not retried: an immediate retry would just spend another request of the same exhausted quota.
 export async function withOneRetry<T>(step: () => Promise<T>): Promise<T> {
   try { return await step() } catch (first) {
+    if (first instanceof RateLimitError) throw first
     console.warn('Gemini step failed, retrying once:', (first as Error).message)
     return step()
   }
