@@ -3,6 +3,12 @@
 // Vercel from deploying them as separate functions. Local dev (dev/api-plugin.ts) uses this same router.
 import * as adminRetag from './_routes/admin/retag.js'
 import * as areas from './_routes/areas.js'
+import * as googleCallback from './_routes/auth/google/callback.js'
+import * as googleStart from './_routes/auth/google/index.js'
+import * as login from './_routes/auth/login.js'
+import * as logout from './_routes/auth/logout.js'
+import * as providers from './_routes/auth/providers.js'
+import * as signup from './_routes/auth/signup.js'
 import * as bookings from './_routes/bookings/index.js'
 import * as bookingsMine from './_routes/bookings/mine.js'
 import * as health from './_routes/health.js'
@@ -39,6 +45,12 @@ export const ROUTES: [pattern: string, module: RouteModule][] = [
   ['/api/notifications/read', notificationsRead],
   ['/api/me', me],
   ['/api/admin/retag', adminRetag],
+  ['/api/auth/signup', signup],
+  ['/api/auth/login', login],
+  ['/api/auth/logout', logout],
+  ['/api/auth/providers', providers],
+  ['/api/auth/google', googleStart],
+  ['/api/auth/google/callback', googleCallback],
 ]
 
 const compiled = ROUTES.map(([pattern, module]) => ({
@@ -65,8 +77,19 @@ function originalRequest(request: Request): Request | Promise<Request> {
     new Request(url, { method: request.method, headers: request.headers, body }))
 }
 
+// Cookie auth + SameSite=Lax already blocks cross-site POSTs; also refuse any state-changing request whose Origin is
+// another site. Server-side scripts send no Origin header and are unaffected.
+export function crossSite(request: Request): boolean {
+  if (request.method === 'GET' || request.method === 'HEAD') return false
+  const origin = request.headers.get('origin')
+  if (!origin) return false
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? new URL(request.url).host
+  try { return new URL(origin).host !== host } catch { return true }
+}
+
 async function dispatch(incoming: Request): Promise<Response> {
   const request = await originalRequest(incoming)
+  if (crossSite(request)) return json(403, { error: 'cross_site_request' })
   const module = match(new URL(request.url).pathname)
   if (!module) return json(404, { error: 'not_found' })
   const handler = module[request.method as 'GET' | 'POST']

@@ -6,7 +6,6 @@ import {
 import type { Area, Draft, Listing, SearchResponse } from '../shared/contracts'
 import { CATEGORIES, GENDERS, OCCASIONS, SIZES, type Size } from '../shared/vocab'
 import { api, ApiError, type AppNotification, type Me } from './api'
-import { supabase } from './supabase'
 import { addDays, overlaps, quote, todayInIndia, validateDates, MAX_DAYS_AHEAD, type Booking } from '../shared/booking'
 import { categoryLabel, downscaleImage, formatDate, formatKm, formatRange, kmBetween, occasionLabel, rupees, storage, titleCase } from './lib'
 
@@ -60,15 +59,16 @@ function App() {
   useEffect(() => { api.listings({ limit: 48 }).then(setNearby).catch(() => setNearby([])) }, [])
   useEffect(() => { storage.set('drape:area', area) }, [area])
   useEffect(() => { storage.set('drape:favorites', favorites) }, [favorites])
-  // Session: Supabase keeps it in localStorage and refreshes it; we mirror the signed-in user from /api/me.
+  // Session lives in an httpOnly cookie; ask the server who we are. Also finish a Google sign-in redirect (?signed_in /
+  // ?auth_error) and tidy the URL afterwards.
   useEffect(() => {
-    if (!supabase) return
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) api.me().then((r) => setMe(r.user)).catch(() => setMe(null))
-      else { setMe(null); setNotes({ items: [], unread: 0 }); setBellOpen(false) }
-    })
-    return () => data.subscription.unsubscribe()
-  }, [])
+    api.me().then((r) => setMe(r.user)).catch(() => setMe(null))
+    const params = new URLSearchParams(window.location.search)
+    const error = params.get('auth_error')
+    if (params.has('signed_in')) notify('Signed in with Google')
+    if (error) notify(error === 'google_unverified' ? 'Your Google email isn’t verified yet.' : error === 'google_unavailable' ? 'Google sign-in isn’t set up yet — use email instead.' : 'Google sign-in didn’t work — please try again.')
+    if (params.has('signed_in') || error) window.history.replaceState(null, '', window.location.pathname)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   const loadNotes = useCallback(() => api.notifications().then((r) => setNotes({ items: r.notifications, unread: r.unread })).catch(() => undefined), [])
   // Owners hear about new bookings on the bell; poll while signed in (and whenever the tab regains focus).
   useEffect(() => {
@@ -144,12 +144,15 @@ function App() {
     setBellOpen(opening)
     if (opening && notes.unread > 0) { api.markRead().catch(() => undefined); window.setTimeout(() => setNotes((n) => ({ ...n, unread: 0 })), 1500) }
   }
-  const signOut = async () => { await supabase?.auth.signOut(); setPage('ai'); notify('Signed out') }
+  const signOut = async () => {
+    await api.logout().catch(() => undefined)
+    setMe(null); setNotes({ items: [], unread: 0 }); setBellOpen(false); setPage('ai'); notify('Signed out')
+  }
   const viewRentals = () => { setSelected(null); setPage('rentals'); window.scrollTo(0, 0) }
   const searchContext = search.status === 'done' ? search.response.parsed : null
 
   const toastNode = toast && <div className="toast" role="status"><Check size={16} /> {toast}</div>
-  if (authFor) return <><AuthPage reason={authFor} onDone={(name) => { setAuthFor(null); notify(`Welcome, ${name}`) }} onCancel={() => setAuthFor(null)} />{toastNode}</>
+  if (authFor) return <><AuthPage reason={authFor} onDone={(user) => { setMe(user); setAuthFor(null); notify(`Welcome, ${user.name.split(' ')[0]}`) }} onCancel={() => setAuthFor(null)} />{toastNode}</>
   if (selected) return <><ProductDetail piece={selected} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} me={me} onNeedAuth={() => askSignIn('Sign in to book')} onBooked={onBooked} onViewRentals={viewRentals} />{toastNode}</>
 
   const areaOptions = areas.length ? areas.map((a) => a.name) : [area]
@@ -550,38 +553,44 @@ function NotificationsPanel({ items, onOpen, onClose }: { items: AppNotification
   </div>
 }
 
-function AuthPage({ reason, onDone, onCancel }: { reason: string; onDone: (name: string) => void; onCancel: () => void }) {
+function AuthPage({ reason, onDone, onCancel }: { reason: string; onDone: (user: Me) => void; onCancel: () => void }) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
-  const [status, setStatus] = useState<{ busy: boolean; error?: string; info?: string }>({ busy: false })
-  const friendly = (message: string) => /invalid login/i.test(message) ? 'Wrong email or password.' : /already registered/i.test(message) ? 'That email already has an account — sign in instead.' : /rate limit/i.test(message) ? 'Too many attempts — wait a minute and try again.' : message
+  const [status, setStatus] = useState<{ busy: boolean; error?: string }>({ busy: false })
+  const [google, setGoogle] = useState(false)
+  useEffect(() => { api.providers().then((p) => setGoogle(p.google)).catch(() => setGoogle(false)) }, [])
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!supabase) { setStatus({ busy: false, error: 'Sign-in isn’t configured on this deployment.' }); return }
     const email = form.email.trim()
-    if (mode === 'signup' && !form.name.trim()) { setStatus({ busy: false, error: 'Add your name so owners know who’s booking.' }); return }
-    if (form.password.length < 6) { setStatus({ busy: false, error: 'Passwords need at least 6 characters.' }); return }
+    if (mode === 'signup' && !form.name.trim()) return setStatus({ busy: false, error: 'Add your name so owners know who’s booking.' })
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return setStatus({ busy: false, error: 'That doesn’t look like an email address.' })
+    if (mode === 'signup' && form.password.length < 8) return setStatus({ busy: false, error: 'Passwords need at least 8 characters.' })
+    if (!form.password) return setStatus({ busy: false, error: 'Enter your password.' })
     setStatus({ busy: true })
-    if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({ email, password: form.password, options: { data: { name: form.name.trim() } } })
-      if (error) return setStatus({ busy: false, error: friendly(error.message) })
-      if (!data.session) return setStatus({ busy: false, info: 'Check your inbox to confirm your email, then sign in here.' })
-      return onDone(form.name.trim().split(' ')[0])
+    try {
+      const user = mode === 'signup'
+        ? await api.signup({ name: form.name.trim(), email, password: form.password })
+        : await api.login({ email, password: form.password })
+      onDone(user)
+    } catch (error) {
+      setStatus({ busy: false, error: error instanceof ApiError ? error.message : 'Something went wrong. Please try again.' })
     }
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: form.password })
-    if (error) return setStatus({ busy: false, error: friendly(error.message) })
-    onDone(String(data.user?.user_metadata?.name ?? email.split('@')[0]).split(' ')[0])
   }
   return <div className="app-shell"><div className="simple-page auth-page"><button className="back-button" onClick={onCancel}><ArrowLeft size={16} /> Back</button><div className="page-intro compact"><div><span className="section-kicker">{reason.toUpperCase()}</span><h1>{mode === 'signin' ? <>Welcome <em>back</em></> : <>Join <em>DRAPE</em></>}</h1><p>{mode === 'signin' ? 'Sign in to book pieces, list your own and get notified.' : 'One account to borrow nearby and earn from your wardrobe.'}</p></div></div>
     <form className="auth-form" onSubmit={submit} noValidate>
+      {google && <><a className="outline-button full-width google-button" href="/api/auth/google"><GoogleMark /> Continue with Google</a><p className="field-label auth-or">or use your email</p></>}
       {mode === 'signup' && <><span className="field-label">Your name</span><div className="explore-search field"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} autoComplete="name" placeholder="Shown to owners and borrowers" aria-label="Your name" /></div></>}
       <span className="field-label">Email</span><div className="explore-search field"><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} autoComplete="email" placeholder="you@example.com" aria-label="Email" /></div>
-      <span className="field-label">Password</span><div className="explore-search field"><input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="At least 6 characters" aria-label="Password" /></div>
+      <span className="field-label">Password</span><div className="explore-search field"><input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'} aria-label="Password" /></div>
       {status.error && <p className="field-label booking-error" role="alert">{status.error}</p>}
-      {status.info && <p className="field-label" role="status">{status.info}</p>}
       <button className="primary-button full-width" type="submit" disabled={status.busy}>{status.busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'} <ArrowUpRight size={17} /></button>
       <button type="button" className="text-button auth-switch" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setStatus({ busy: false }) }}>{mode === 'signin' ? 'New to DRAPE? Create an account' : 'Already have an account? Sign in'} <ArrowUpRight size={15} /></button>
     </form></div></div>
+}
+
+// Google's "G" mark, as the brand guidelines ask for on a sign-in button.
+function GoogleMark() {
+  return <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" /><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" /></svg>
 }
 
 function Wardrobe({ onExplore }: { onExplore: () => void }) { return <div className="simple-page wardrobe-page"><div className="page-intro compact"><div><span className="section-kicker">WHAT YOU ALREADY OWN</span><h1>My <em>wardrobe</em></h1><p>Build a look from what is yours, then fill the gaps nearby.</p></div></div><div className="wardrobe-summary"><div><strong>12</strong><span>Total pieces</span></div><div><strong>04</strong><span>Outfit ideas</span></div><button className="primary-button" onClick={onExplore}>Build an outfit <ArrowUpRight size={16} /></button></div><div className="wardrobe-grid">{products.slice(0, 4).map((product) => <div className="wardrobe-card" key={product.id}><img src={product.image} alt={product.name} /><div><strong>{product.name}</strong><span>{product.category} · {product.color}</span></div></div>)}</div><div className="demand-note"><Gem size={17} /><div><strong>You already have the trousers and shoes.</strong><p>You only need a blazer to complete your dinner look.</p></div><button className="text-button" onClick={onExplore}>Find nearby <ArrowUpRight size={15} /></button></div></div> }

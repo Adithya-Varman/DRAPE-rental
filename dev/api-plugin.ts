@@ -23,7 +23,10 @@ async function toRequest(req: IncomingMessage): Promise<Request> {
 
 async function send(res: ServerResponse, response: Response) {
   res.statusCode = response.status
-  response.headers.forEach((value, key) => res.setHeader(key, value))
+  // Set-Cookie must stay separate headers (Headers.forEach would join several cookies into one broken value).
+  response.headers.forEach((value, key) => { if (key !== 'set-cookie') res.setHeader(key, value) })
+  const cookies = response.headers.getSetCookie()
+  if (cookies.length) res.setHeader('set-cookie', cookies)
   res.end(Buffer.from(await response.arrayBuffer()))
 }
 

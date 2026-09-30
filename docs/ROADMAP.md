@@ -28,8 +28,9 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | 4 Frontend integration | ✅ merged (#5) |
 | 5 Seed data, QA & demo | ✅ merged (#6) — 9/9 PRD success criteria pass live (`scripts/verify-prd.mjs`) |
 | 6 Bookings (post-PRD) | ✅ merged (#7) — book dates, mock 20% advance, contact on confirmation, My Rentals |
-| 7 Accounts + owner notifications | ✅ merged (#8) — Supabase Auth, owned listings/bookings, bell notifications, real Profile. ⏳ Signed-in end-to-end check still to do by a person |
+| 7 Accounts + owner notifications | ✅ merged (#8) — Supabase Auth, owned listings/bookings, bell notifications, real Profile. Auth replaced in Phase 9 |
 | 8 Streetwear, bottoms, outfits | 🟡 merged (#9), partly done — vocabulary, 31 new pieces, re-tagging, `/api/listings/:id/complete`. ⏳ "Complete the look" row on the listing page |
+| 9 Own accounts + Google via Supabase | ✅ merged (#10) — email/password in our DB, cookie sessions, lockout, Google through Supabase's provider; owner notifications verified end to end |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 
@@ -122,6 +123,15 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 - `GET /api/listings/:id/complete`: complementary-slot pieces that share an occasion and gender, ranked by style
   similarity with a light nearness bonus, with the piece that completes the outfit listed first (bottoms for a top).
 - **Still to do:** show "Complete the look" as a card row on the listing page, and add a rave suggestion chip.
+
+### Phase 9 — Our own accounts, Google through Supabase
+- `users` (citext email, scrypt hash, google_sub, lockout counters) and `sessions` (SHA-256 of a random token, 30 days)
+  replace Supabase Auth for email + password. Two accounts created under Supabase Auth were migrated with their bcrypt
+  hashes, which upgrade to scrypt on next login.
+- httpOnly/Secure/SameSite=Lax session cookie; Origin check on state-changing requests; 5 wrong passwords → 10-minute
+  lock; unknown emails cost the same time and get the same message.
+- Google: `/api/auth/google` → Supabase `/authorize?provider=google` with a PKCE challenge; the callback exchanges the code
+  with the verifier from an httpOnly cookie, then links/creates our user and starts our session.
 
 ## Out of scope (V1 pitch)
 Real payments, deposits, ratings, in-app chat, returns, real geolocation, search-by-photo.
