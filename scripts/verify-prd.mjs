@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Demo-readiness check: verifies every PRD §11 success criterion against a running deployment.
 //
-//   node scripts/verify-prd.mjs [https://drape-sable.vercel.app] [--area Adyar]
+//   node --env-file=.env.local scripts/verify-prd.mjs [https://drape-sable.vercel.app] [--area Adyar]
+// (the server key is needed for the upload checks, since photo analysis requires an account or the key)
 //
 // Uses ~3 vision calls and ~15 text calls, well inside free-tier limits. Exits non-zero if anything fails.
 // Note: the two garment uploads are analyzed but not published, so their photos stay in Storage.
@@ -27,7 +28,7 @@ async function analyze(url) {
   const blob = new Blob([await fetch(url).then((r) => r.arrayBuffer())])
   const form = new FormData()
   form.append('image', blob, 'photo.jpg')
-  const response = await fetch(`${BASE}/api/listings/analyze`, { method: 'POST', body: form })
+  const response = await fetch(`${BASE}/api/listings/analyze`, { method: 'POST', body: form, headers: process.env.SUPABASE_SERVICE_ROLE_KEY ? { 'x-admin-key': process.env.SUPABASE_SERVICE_ROLE_KEY } : {} })
   return { status: response.status, body: await response.json() }
 }
 

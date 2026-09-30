@@ -26,8 +26,8 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 - **Bookings.** *Book this piece* lets you pick dates (up to 14 days, up to 90 days ahead) and pay a 20% advance
   (minimum ₹50). The rest is paid at pickup. The server recomputes every price, and a Postgres exclusion constraint
   makes double-booking impossible, even when two people pay at the same moment.
-- **Accounts + notifications.** Our own accounts, not Supabase Auth: email + password stored in `users` (scrypt hashes,
-  5 wrong tries lock the account for 10 minutes), and sessions in an httpOnly, Secure, SameSite=Lax cookie whose SHA-256
+- **Accounts + notifications.** Our own accounts, not Supabase Auth: email + password stored in `users` (scrypt hashes;
+  5 wrong tries lock that email address for 10 minutes, counted the same way for addresses with and without accounts), and sessions in an httpOnly, Secure, SameSite=Lax cookie whose SHA-256
   is kept in `sessions`. **Continue with Google** goes through Supabase Auth's Google provider (PKCE); the verified
   identity is copied into our `users` table and our own session starts. Publishing and booking need an account; browsing,
   search and the free contact reveal don't. When someone books, a database trigger creates a notification for the
@@ -42,9 +42,9 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 | Route | Purpose |
 |---|---|
 | `GET /api/areas` | The 15 seeded Chennai areas |
-| `GET /api/listings?occasion=&limit=` | Listings for the nearby row and Explore's occasion chips |
+| `GET /api/listings?area=&occasion=&limit=&offset=` | `{ listings, total }` — nearest first when an area is given (nearby row, Explore paging); CDN-cached 30 s |
 | `GET /api/listings/:id` · `/:id/contact` | One listing · its owner contact |
-| `POST /api/listings/analyze` | Multipart photo → `{ image_url, draft }`, or `422 not_clothing` |
+| `POST /api/listings/analyze` 🔒 | Multipart photo → `{ image_url, draft }`, or `422 not_clothing` (signed in, or the server key for scripts) |
 | `POST /api/listings` | Publish an edited draft (server computes embedding + location) |
 | `POST /api/search` | `{ query, area, size?, max_price?, reasons? }` → `{ parsed, relaxed, results }` |
 | `POST /api/search/reasons` | Batched "why it fits" for up to 6 results |
@@ -97,7 +97,7 @@ All other keys are server-side only. Never prefix them with `VITE_`. Optional tu
 |---|---|
 | `npm test` | Unit tests (contracts, routing, upload + search pipelines, fallback ladder, UI helpers) |
 | `npm run build` | Type-check and build |
-| `node scripts/verify-prd.mjs <url>` | **Demo-readiness check**: runs all 9 PRD §11 success criteria against a deployment |
+| `node --env-file=.env.local scripts/verify-prd.mjs <url>` | **Demo-readiness check**: runs all 9 PRD §11 success criteria against a deployment (the server key covers the upload checks) |
 | `node --env-file=.env.local scripts/seed-listings.mjs <manifest.json> [--base <url>]` | Seed listings through the real analyze → publish flow (waits out rate limits) |
 | `node --env-file=.env.local scripts/create-demo-owner.mjs` | Create the demo owner (`owner@drape.demo`, generated password printed once) and give it every unowned listing |
 | `node --env-file=.env.local scripts/retag-listings.mjs [--only cat1,cat2]` | Re-tag listings with the current prompt and vocabulary (run against the local dev server) |
@@ -106,7 +106,7 @@ Deploy: `vercel deploy --prod` (the project is pinned to the `bom1` region, next
 
 ## Demo script (~3 min)
 
-Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It should print **9/9 pass**.
+Run `node --env-file=.env.local scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It should print **9/9 pass**.
 
 1. **Hook (20 s).** "How many of you own an outfit you wore exactly once?" Then show the problem stat slide.
 2. **Upload (60 s).** Open **List Item**, then choose a phone photo of a real outfit. Tags appear in about 3 seconds.
@@ -133,6 +133,10 @@ Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It shoul
 - **Seed data** is 79 demo listings: occasion wear, 29 pieces from the team's product sheet, and 31 bottoms and
   club/gig pieces. Owners are demo
   names with `@drape.demo` contacts.
+- **Performance.** The hero is a 34 KB WebP (was a 2.6 MB PNG). Public reads are cached at Vercel's edge for 30–60 s,
+  and JS/CSS assets for a year. Security headers (CSP, frame denial, nosniff, referrer and permissions policy) are set
+  in `vercel.json`.
+- **Backend guide:** [docs/DRAPE-backend-guide.pdf](docs/DRAPE-backend-guide.pdf) explains the backend from A to Z.
 - **All API routes run as one Vercel Function** (`api/router.ts`), because the Hobby plan allows only 12 per
   deployment. Add a new route in `api/_routes/` and register it in the router's table; a test fails if you forget.
 - **Unpublished uploads keep their photo in Storage** (a few MB so far). To see them, run this in the Supabase SQL

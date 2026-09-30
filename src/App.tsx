@@ -56,7 +56,13 @@ function App() {
   const searchSeq = useRef(0)
 
   useEffect(() => { api.areas().then(setAreas).catch(() => setAreas([])) }, [])
-  useEffect(() => { api.listings({ limit: 48 }).then(setNearby).catch(() => setNearby([])) }, [])
+  // Only the 4 nearest pieces are shown, so only 4 are fetched (nearest first, computed by the server).
+  useEffect(() => {
+    let live = true
+    setNearby(null)
+    api.listings({ area, limit: 4 }).then((r) => { if (live) setNearby(r.listings) }).catch(() => { if (live) setNearby([]) })
+    return () => { live = false }
+  }, [area])
   useEffect(() => { storage.set('drape:area', area) }, [area])
   useEffect(() => { storage.set('drape:favorites', favorites) }, [favorites])
   // Session lives in an httpOnly cookie; ask the server who we are. Also finish a Google sign-in redirect (?signed_in /
@@ -87,7 +93,6 @@ function App() {
     const to = areaCoords.get(piece.area)
     return from && to ? kmBetween(from, to) : null
   }, [area, areaCoords])
-  const byDistance = useCallback((list: Piece[]) => [...list].sort((a, b) => (distanceTo(a) ?? 99) - (distanceTo(b) ?? 99)), [distanceTo])
 
   const toggleFavorite = (id: string) => setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3200) }
@@ -153,7 +158,7 @@ function App() {
 
   const toastNode = toast && <div className="toast" role="status"><Check size={16} /> {toast}</div>
   if (authFor) return <><AuthPage reason={authFor} onDone={(user) => { setMe(user); setAuthFor(null); notify(`Welcome, ${user.name.split(' ')[0]}`) }} onCancel={() => setAuthFor(null)} />{toastNode}</>
-  if (selected) return <><ProductDetail piece={selected} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} me={me} onNeedAuth={() => askSignIn('Sign in to book')} onBooked={onBooked} onViewRentals={viewRentals} />{toastNode}</>
+  if (selected) return <><ProductDetail key={selected.id} piece={selected} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} distance={distanceTo(selected)} area={area} context={searchContext} favorite={favorites.includes(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onBack={() => setSelected(null)} me={me} onNeedAuth={() => askSignIn('Sign in to book')} onBooked={onBooked} onViewRentals={viewRentals} />{toastNode}</>
 
   const areaOptions = areas.length ? areas.map((a) => a.name) : [area]
   return <div className="app-shell">
@@ -181,10 +186,10 @@ function App() {
     </div>}
 
     <main className="main-content">
-      {page === 'ai' && <Home query={query} setQuery={setQuery} submitPrompt={submitPrompt} search={search} startOver={startOver} retry={() => search.status !== 'idle' && runSearch(search.turns)} filters={filters} setFilters={changeFilters} area={area} nearby={nearby ? byDistance(nearby).slice(0, 4) : null} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} onExplore={() => setPage('explore')} />}
-      {page === 'explore' && <Explore area={area} byDistance={byDistance} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} />}
+      {page === 'ai' && <Home query={query} setQuery={setQuery} submitPrompt={submitPrompt} search={search} startOver={startOver} retry={() => search.status !== 'idle' && runSearch(search.turns)} filters={filters} setFilters={changeFilters} area={area} nearby={nearby} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} onExplore={() => setPage('explore')} />}
+      {page === 'explore' && <Explore area={area} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={openPiece} />}
       {page === 'rentals' && <Rentals me={me} onSignIn={() => askSignIn('Sign in to see your rentals')} onExplore={() => setPage('explore')} onOpen={openListing} />}
-      {page === 'list' && <ListItem me={me} onNeedAuth={() => askSignIn('Sign in to publish your piece')} areas={areaOptions} defaultArea={area} onPublished={(listing) => { notify('Your piece is live — it shows up in search right now'); setNearby((current) => [listing, ...(current ?? [])]); openPiece(listing) }} onError={notify} />}
+      {page === 'list' && <ListItem me={me} onNeedAuth={() => askSignIn('Sign in to publish your piece')} areas={areaOptions} defaultArea={area} onPublished={(listing) => { notify('Your piece is live — it shows up in search right now'); setNearby((current) => [listing, ...(current ?? [])].slice(0, 4)); openPiece(listing) }} onError={notify} />}
       {page === 'profile' && <Profile me={me} favorites={favorites.length} onPage={setPage} onSignIn={() => askSignIn('Sign in to see your profile')} onSignOut={signOut} />}
       {page === 'wardrobe' && <Wardrobe onExplore={() => setPage('explore')} />}
     </main>
@@ -205,7 +210,7 @@ function Home({ query, setQuery, submitPrompt, search, startOver, retry, filters
   const latest = search.status === 'idle' ? '' : search.turns[search.turns.length - 1]
   const results = search.status === 'done' ? search.response.results : []
   return <div className="home-page">
-    <div className="hero-visual"><div className="hero-wash" /><img src="/image.png" alt="Editorial fashion portrait" /></div>
+    <div className="hero-visual"><div className="hero-wash" /><picture><source srcSet="/hero.webp" type="image/webp" /><img src="/hero.jpg" alt="Editorial fashion portrait" width={1375} height={1144} fetchPriority="high" decoding="async" /></picture></div>
     <aside className="editorial-note"><div className="script">Wear<br />Share<br />Belong</div><p>GREAT OUTFITS<br />SHOULDN'T<br />BE WORN ONCE.</p></aside>
     <section className="hero-content">
       <div className="eyebrow"><span className="eyebrow-line" /> YOUR PERSONAL STYLIST, NEARBY</div>
@@ -250,28 +255,42 @@ function SkeletonCards({ count }: { count: number }) { return <>{Array.from({ le
 
 function ProductCard({ piece, distance, favorite, onFavorite, onSelect }: { piece: Piece; distance: number | null; favorite: boolean; onFavorite: () => void; onSelect: () => void }) { return <article className="product-card"><button className="product-image-button" onClick={onSelect}><img src={piece.image_url} alt={piece.title} loading="lazy" /><div className="distance"><MapPin size={12} />{formatKm(distance) ?? piece.area}</div></button><button className={`favorite ${favorite ? 'is-favorite' : ''}`} onClick={onFavorite} aria-label="Save item"><Heart size={18} fill={favorite ? 'currentColor' : 'none'} /></button><button className="product-copy" onClick={onSelect}><h3>{piece.title}</h3><div className="product-meta"><span><strong>{rupees(piece.price_per_day)}</strong> / day</span><span>{piece.size === 'FREE' ? 'Free size' : piece.size}</span></div><div className="availability"><span className="availability-dot" />{piece.reason ?? `In ${piece.area}`}</div></button></article> }
 
-function Explore({ area, byDistance, distanceTo, favorites, toggleFavorite, onSelect }: { area: string; byDistance: (list: Piece[]) => Piece[]; distanceTo: (piece: Piece) => number | null; favorites: string[]; toggleFavorite: (id: string) => void; onSelect: (piece: Piece) => void }) {
+const EXPLORE_PAGE = 24
+
+function Explore({ area, distanceTo, favorites, toggleFavorite, onSelect }: { area: string; distanceTo: (piece: Piece) => number | null; favorites: string[]; toggleFavorite: (id: string) => void; onSelect: (piece: Piece) => void }) {
   const [text, setText] = useState('')
   const [chip, setChip] = useState('All pieces')
   const [listings, setListings] = useState<Listing[] | null>(null)
+  const [total, setTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [failed, setFailed] = useState(false)
+  const occasion = chip === 'All pieces' ? undefined : OCCASIONS[occasionChips.indexOf(chip) - 1]
+  // Nearest first, a page at a time (the server sorts by distance, so every page continues the same order).
   useEffect(() => {
     let live = true
     setListings(null)
     setFailed(false)
-    const occasion = chip === 'All pieces' ? undefined : OCCASIONS[occasionChips.indexOf(chip) - 1]
-    api.listings({ occasion, limit: 48 }).then((rows) => { if (live) setListings(rows) }).catch(() => { if (live) { setListings([]); setFailed(true) } })
+    api.listings({ area, occasion, limit: EXPLORE_PAGE }).then((r) => { if (live) { setListings(r.listings); setTotal(r.total) } }).catch(() => { if (live) { setListings([]); setTotal(0); setFailed(true) } })
     return () => { live = false }
-  }, [chip])
-  const shown = useMemo(() => {
-    const needle = text.trim().toLowerCase()
-    const matches = (listings ?? []).filter((piece) => !needle || [piece.title, piece.category, ...piece.style_tags, ...(piece.colors ?? [])].join(' ').toLowerCase().includes(needle))
-    return byDistance(matches)
-  }, [listings, text, byDistance])
-  return <div className="explore-page"><div className="page-intro"><div><span className="section-kicker">THE NEARBY EDIT</span><h1>Explore <em>pieces</em></h1><p>Borrow beautifully. Keep things moving.</p></div><div className="explore-search"><Search size={17} /><input value={text} onChange={(event) => setText(event.target.value)} placeholder="Search sarees, blazers, colours..." aria-label="Filter pieces" /></div></div><div className="category-scroll">{occasionChips.map((item) => <button className={chip === item ? 'selected' : ''} key={item} onClick={() => setChip(item)}>{item}</button>)}</div><div className="filter-row"><button><SlidersHorizontal size={15} /> Filters</button><span>{listings === null ? 'Loading pieces…' : `${shown.length} ${shown.length === 1 ? 'piece' : 'pieces'} near ${area}`}</span><button className="sort-button">Sort: Nearest <ChevronDown size={14} /></button></div><div className="explore-grid">{listings === null ? <SkeletonCards count={8} /> : shown.map((piece) => <ProductCard key={piece.id} piece={piece} distance={distanceTo(piece)} favorite={favorites.includes(piece.id)} onFavorite={() => toggleFavorite(piece.id)} onSelect={() => onSelect(piece)} />)}</div>{listings !== null && shown.length === 0 && <div className="empty-state"><Gem size={25} /><h2>{failed ? 'Couldn’t load pieces right now.' : 'Nothing matching nearby yet.'}</h2><p>{failed ? 'Check your connection and try again.' : 'Try a different occasion, or ask the AI Stylist to widen the search.'}</p></div>}</div>
+  }, [area, occasion])
+  const loadMore = async () => {
+    if (!listings || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const r = await api.listings({ area, occasion, limit: EXPLORE_PAGE, offset: listings.length })
+      setListings((current) => [...(current ?? []), ...r.listings.filter((l) => !(current ?? []).some((c) => c.id === l.id))])
+      setTotal(r.total)
+    } catch { setFailed(true) } finally { setLoadingMore(false) }
+  }
+  const needle = text.trim().toLowerCase()
+  const shown = (listings ?? []).filter((piece) => !needle || [piece.title, piece.category, ...piece.style_tags, ...(piece.colors ?? [])].join(' ').toLowerCase().includes(needle))
+  const count = needle ? `${shown.length} of ${listings?.length ?? 0} loaded` : `${total} ${total === 1 ? 'piece' : 'pieces'} near ${area}`
+  return <div className="explore-page"><div className="page-intro"><div><span className="section-kicker">THE NEARBY EDIT</span><h1>Explore <em>pieces</em></h1><p>Borrow beautifully. Keep things moving.</p></div><div className="explore-search"><Search size={17} /><input value={text} onChange={(event) => setText(event.target.value)} placeholder="Search sarees, blazers, colours..." aria-label="Filter pieces" /></div></div><div className="category-scroll">{occasionChips.map((item) => <button className={chip === item ? 'selected' : ''} key={item} onClick={() => setChip(item)}>{item}</button>)}</div><div className="filter-row"><button><SlidersHorizontal size={15} /> Filters</button><span>{listings === null ? 'Loading pieces…' : count}</span><button className="sort-button">Sort: Nearest <ChevronDown size={14} /></button></div><div className="explore-grid">{listings === null ? <SkeletonCards count={8} /> : shown.map((piece) => <ProductCard key={piece.id} piece={piece} distance={distanceTo(piece)} favorite={favorites.includes(piece.id)} onFavorite={() => toggleFavorite(piece.id)} onSelect={() => onSelect(piece)} />)}</div>
+    {listings !== null && listings.length < total && <div className="load-more"><button className="outline-button" onClick={loadMore} disabled={loadingMore}>{loadingMore ? 'Loading…' : `Load more pieces (${total - listings.length} more)`} <ChevronDown size={14} /></button></div>}
+    {listings !== null && shown.length === 0 && <div className="empty-state"><Gem size={25} /><h2>{failed ? 'Couldn’t load pieces right now.' : 'Nothing matching nearby yet.'}</h2><p>{failed ? 'Check your connection and try again.' : 'Try a different occasion, or ask the AI Stylist to widen the search.'}</p></div>}</div>
 }
 
-function ProductDetail({ piece: initial, distance, area, context, favorite, onFavorite, onBack, me, onNeedAuth, onBooked, onViewRentals }: { piece: Piece; distance: number | null; area: string; context: SearchResponse['parsed'] | null; favorite: boolean; onFavorite: () => void; onBack: () => void; me: Me | null; onNeedAuth: () => void; onBooked: () => void; onViewRentals: () => void }) {
+function ProductDetail({ piece: initial, distance, area, context, favorite, onFavorite, onBack, me, onNeedAuth, onBooked, onViewRentals, distanceTo, favorites, toggleFavorite, onSelect }: { piece: Piece; distance: number | null; area: string; context: SearchResponse['parsed'] | null; favorite: boolean; onFavorite: () => void; onBack: () => void; me: Me | null; onNeedAuth: () => void; onBooked: () => void; onViewRentals: () => void; distanceTo: (piece: Piece) => number | null; favorites: string[]; toggleFavorite: (id: string) => void; onSelect: (piece: Piece) => void }) {
   const [piece, setPiece] = useState<Piece>(initial)
   const [booking, setBooking] = useState(false)
   const [contact, setContact] = useState<{ state: 'hidden' | 'loading' | 'shown' | 'error'; value?: string }>({ state: 'hidden' })
@@ -296,7 +315,31 @@ function ProductDetail({ piece: initial, distance, area, context, favorite, onFa
     <button className={`save-button ${favorite ? 'saved' : ''}`} onClick={onFavorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /> {favorite ? 'Saved' : 'Save'}</button></div>
     {booking && <BookingPanel piece={piece} me={me} onNeedAuth={onNeedAuth} onBooked={onBooked} onViewRentals={onViewRentals} />}
     {reasons.length > 0 && <div className="why-match"><div className="why-title"><Gem size={16} /> Why this matches you</div>{reasons.map((reason) => <div className="match-row" key={reason}><Check size={14} />{reason}</div>)}</div>}
-    <div className="attributes"><h3>The details</h3><div className="attribute-grid">{[['Colour', piece.colors?.length ? piece.colors.map(titleCase).join(', ') : '—'], ['Size', piece.size === 'FREE' ? 'Free size' : piece.size], ['Category', categoryLabel(piece.category)], ['Occasion', piece.occasions.map(occasionLabel).join(', ') || '—'], ['Style', piece.style_tags.slice(0, 3).map(titleCase).join(', ') || '—'], ['Formality', piece.formality ? `${piece.formality} / 5` : '—']].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></div></div></div></div>
+    <div className="attributes"><h3>The details</h3><div className="attribute-grid">{[['Colour', piece.colors?.length ? piece.colors.map(titleCase).join(', ') : '—'], ['Size', piece.size === 'FREE' ? 'Free size' : piece.size], ['Category', categoryLabel(piece.category)], ['Occasion', piece.occasions.map(occasionLabel).join(', ') || '—'], ['Style', piece.style_tags.slice(0, 3).map(titleCase).join(', ') || '—'], ['Formality', piece.formality ? `${piece.formality} / 5` : '—']].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></div></div></div>
+    <CompleteTheLook piece={piece} distanceTo={distanceTo} favorites={favorites} toggleFavorite={toggleFavorite} onSelect={onSelect} /></div>
+}
+
+const SLOT_LABEL: Record<string, string> = { top: 'Top', bottom: 'Bottom', one_piece: 'Outfit', layer: 'Layer' }
+
+// Pieces that finish this one's outfit (bottoms for a top, a jacket for a dress…), from /api/listings/:id/complete.
+function CompleteTheLook({ piece, distanceTo, favorites, toggleFavorite, onSelect }: { piece: Piece; distanceTo: (piece: Piece) => number | null; favorites: string[]; toggleFavorite: (id: string) => void; onSelect: (piece: Piece) => void }) {
+  const [pairs, setPairs] = useState<Piece[] | null>(null)
+  useEffect(() => {
+    let live = true
+    api.complete(piece.id).then((r) => {
+      if (!live) return
+      // distance_km from this endpoint is measured from the anchor piece, not from the user — drop it so cards show
+      // the distance from the user's area like everywhere else.
+      setPairs(r.results.slice(0, 4).map(({ distance_km: _, slot, occasions, ...rest }) => {
+        const shared = occasions.find((o) => piece.occasions.includes(o))
+        return { ...rest, occasions, reason: `${SLOT_LABEL[slot] ?? 'Pairs'}${shared ? ` · also for ${occasionLabel(shared)}` : ''}` }
+      }))
+    }).catch(() => { if (live) setPairs([]) })
+    return () => { live = false }
+  }, [piece.id, piece.occasions])
+  if (!pairs || pairs.length === 0) return null
+  return <section className="nearby-section complete-look"><div className="section-heading"><div><span className="section-kicker">COMPLETE THE LOOK</span><h2>Pair it with <span className="heading-arrow"><ChevronRight size={17} /></span></h2></div></div>
+    <div className="product-row">{pairs.map((p) => <ProductCard key={p.id} piece={p} distance={distanceTo(p)} favorite={favorites.includes(p.id)} onFavorite={() => toggleFavorite(p.id)} onSelect={() => { onSelect(p); window.scrollTo(0, 0) }} />)}</div></section>
 }
 
 function BookingPanel({ piece, me, onNeedAuth, onBooked, onViewRentals }: { piece: Piece; me: Me | null; onNeedAuth: () => void; onBooked: () => void; onViewRentals: () => void }) {
@@ -406,6 +449,7 @@ function ListItem({ me, onNeedAuth, areas, defaultArea, onPublished, onError }: 
       setPhase('ready')
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'error'
+      if (error instanceof ApiError && error.status === 401) { setPhase('empty'); setPreview(null); onNeedAuth(); return }
       if (code === 'not_clothing') { setPhase('not_clothing'); setMessage('That doesn’t look like clothing. Try a photo of the outfit itself.'); return }
       const storedUrl = error instanceof ApiError && typeof error.body.image_url === 'string' ? error.body.image_url : null
       if (code === 'analysis_failed' && storedUrl) {
@@ -460,9 +504,9 @@ function ListItem({ me, onNeedAuth, areas, defaultArea, onPublished, onError }: 
   const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }))
 
   return <div className="simple-page listing-page"><div className="page-intro compact"><div><span className="section-kicker">GIVE YOUR CLOSET A SECOND LIFE</span><h1>List a <em>piece</em></h1><p>AI will handle the details. You just set the terms.</p></div></div><div className="listing-flow">
-    <div className={`upload-panel ${preview ? 'uploaded' : ''}`} onClick={() => phase !== 'analyzing' && fileInput.current?.click()} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') fileInput.current?.click() }} aria-label="Choose a photo of the piece">
+    <div className={`upload-panel ${preview ? 'uploaded' : ''}`} onClick={() => { if (!me) return onNeedAuth(); if (phase !== 'analyzing') fileInput.current?.click() }} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { if (!me) onNeedAuth(); else fileInput.current?.click() } }} aria-label="Choose a photo of the piece">
       <input ref={fileInput} className="hidden-input" type="file" accept="image/*,.heic,.heif" onChange={(event) => { onFile(event.target.files?.[0]); event.target.value = '' }} />
-      {preview ? <><img src={preview} alt="Your piece" />{overlay}</> : <><span className="upload-icon"><ImagePlus size={24} /></span><h2>Drop in a photo</h2><p>We'll identify the piece and fill in the details.</p><span className="upload-link">Choose from device</span></>}
+      {preview ? <><img src={preview} alt="Your piece" />{overlay}</> : <><span className="upload-icon"><ImagePlus size={24} /></span><h2>Drop in a photo</h2><p>We'll identify the piece and fill in the details.</p><span className="upload-link">{me ? 'Choose from device' : 'Sign in to choose a photo'}</span></>}
     </div>
     <div className="listing-form">
       <div className="form-step"><span>01</span><div><strong>AI detection</strong>

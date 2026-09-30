@@ -90,3 +90,7 @@ a.primary-button { text-decoration: none; }
 a.outline-button { text-decoration: none; }
 .google-button { gap: 10px; margin-top: 4px; }
 .auth-or { text-align: center; margin: 16px 0 0; }
+/* Hero served as WebP/JPEG via <picture>; the wrapper must not affect the existing .hero-visual img sizing. */
+.hero-visual picture { display: contents; }
+.load-more { display: flex; justify-content: center; padding: 0 clamp(24px, 6.3vw, 92px) 70px; margin-top: -30px; }
+.complete-look { margin-top: 64px; }

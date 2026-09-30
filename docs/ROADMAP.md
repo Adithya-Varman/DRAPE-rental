@@ -29,8 +29,9 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
 | 5 Seed data, QA & demo | ✅ merged (#6) — 9/9 PRD success criteria pass live (`scripts/verify-prd.mjs`) |
 | 6 Bookings (post-PRD) | ✅ merged (#7) — book dates, mock 20% advance, contact on confirmation, My Rentals |
 | 7 Accounts + owner notifications | ✅ merged (#8) — Supabase Auth, owned listings/bookings, bell notifications, real Profile. Auth replaced in Phase 9 |
-| 8 Streetwear, bottoms, outfits | 🟡 merged (#9), partly done — vocabulary, 31 new pieces, re-tagging, `/api/listings/:id/complete`. ⏳ "Complete the look" row on the listing page |
+| 8 Streetwear, bottoms, outfits | ✅ merged (#9, finished in #11) — vocabulary, 31 new pieces, re-tagging, Complete the look |
 | 9 Own accounts + Google via Supabase | ✅ merged (#10) — email/password in our DB, cookie sessions, lockout, Google through Supabase's provider; owner notifications verified end to end |
+| 10 Production readiness | ✅ merged (#11) — hero 2.6 MB → 34 KB, Explore paging past 48, CDN caching, sign-in for uploads, uniform lockout, JSON-only bodies, security headers, Complete the look UI, backend guide PDF |
 - **Every phase ends with QA → PR → merge to `main`.** QA = `npm run build`, `npm test`, plus a browser pass
   comparing the untouched screens against the baseline.
 
@@ -122,7 +123,7 @@ Goal: turn the existing DRAPE frontend into the working v0 from the PRD — **AI
   with `scripts/retag-listings.mjs` (via the server-key-only `POST /api/admin/retag`).
 - `GET /api/listings/:id/complete`: complementary-slot pieces that share an occasion and gender, ranked by style
   similarity with a light nearness bonus, with the piece that completes the outfit listed first (bottoms for a top).
-- **Still to do:** show "Complete the look" as a card row on the listing page, and add a rave suggestion chip.
+- The listing page shows "Complete the look" as a card row (Phase 10).
 
 ### Phase 9 — Our own accounts, Google through Supabase
 - `users` (citext email, scrypt hash, google_sub, lockout counters) and `sessions` (SHA-256 of a random token, 30 days)

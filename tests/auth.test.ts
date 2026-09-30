@@ -62,10 +62,11 @@ describe('cross-site protection', () => {
 type Row = Record<string, unknown>
 let users: Row[] = []
 const sessions: Row[] = []
+let attempts: Row[] = []
 vi.mock('../api/_lib/supabase', async (orig) => {
   const actual = await orig<typeof import('../api/_lib/supabase')>()
   const table = (name: string) => {
-    const rows = name === 'users' ? users : sessions
+    const rows = name === 'users' ? users : name === 'login_attempts' ? attempts : sessions
     let filters: [string, unknown][] = []
     let pendingUpdate: Row | null = null
     let pendingInsert: Row | null = null
@@ -74,7 +75,12 @@ vi.mock('../api/_lib/supabase', async (orig) => {
       eq: (k: string, v: unknown) => { filters.push([k, v]); return q },
       lt: () => q,
       update: (patch: Row) => { pendingUpdate = patch; return q },
-      delete: () => q,
+      delete: () => { pendingUpdate = null; (q as { _delete?: boolean })._delete = true; return q },
+      upsert: (row: Row) => {
+        const existing = rows.find((r) => r.email === row.email)
+        if (existing) Object.assign(existing, row); else rows.push({ ...row })
+        return q
+      },
       insert: (row: Row) => {
         pendingInsert = row
         return q
@@ -89,6 +95,7 @@ vi.mock('../api/_lib/supabase', async (orig) => {
       then: (resolve: (v: unknown) => void) => {
         if (pendingInsert) rows.push({ ...pendingInsert })
         if (pendingUpdate) rows.filter((r) => filters.every(([k, v]) => r[k] === v)).forEach((r) => Object.assign(r, pendingUpdate))
+        if ((q as { _delete?: boolean })._delete) { for (let i = rows.length - 1; i >= 0; i--) if (filters.every(([k, v]) => rows[i][k] === v)) rows.splice(i, 1); (q as { _delete?: boolean })._delete = false }
         filters = []
         resolve({ error: null })
       },
@@ -100,10 +107,10 @@ vi.mock('../api/_lib/supabase', async (orig) => {
 const { POST: signup } = await import('../api/_routes/auth/signup.js')
 const { POST: login, MAX_FAILED_LOGINS } = await import('../api/_routes/auth/login.js')
 const { GET: googleCallback } = await import('../api/_routes/auth/google/callback.js')
-const post = (fn: (r: Request) => Promise<Response>, body: unknown) => fn(new Request('https://drape-sable.vercel.app/api/auth/x', { method: 'POST', body: JSON.stringify(body) }))
+const post = (fn: (r: Request) => Promise<Response>, body: unknown) => fn(new Request('https://drape-sable.vercel.app/api/auth/x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }))
 
 describe('sign-up and login routes', () => {
-  beforeEach(() => { users = []; sessions.length = 0 })
+  beforeEach(() => { users = []; sessions.length = 0; attempts = [] })
   it('signs up, sets a session cookie, and never stores the plain password', async () => {
     const res = await post(signup, { name: 'Asha', email: 'Asha@Example.com', password: 'longenough' })
     expect(res.status).toBe(201)
@@ -131,8 +138,26 @@ describe('sign-up and login routes', () => {
     const locked = await post(login, { email: 'a@x.co', password: 'longenough' })
     expect(locked.status).toBe(429)
   })
+  it('locks unknown emails exactly like real ones, so lockout reveals nothing', async () => {
+    for (let i = 0; i < MAX_FAILED_LOGINS; i++) await post(login, { email: 'ghost@x.co', password: 'nope' })
+    const res = await post(login, { email: 'ghost@x.co', password: 'nope' })
+    expect(res.status).toBe(429)
+  })
+  it('gives Google-only accounts the same generic answer as a wrong password', async () => {
+    users.push({ id: 'g1', email: 'g@x.co', name: 'G', password_hash: null, google_sub: 'sub-1' })
+    const res = await post(login, { email: 'g@x.co', password: 'anything' })
+    expect(res.status).toBe(401)
+    expect((await res.json()).error).toBe('Wrong email or password.')
+  })
+  it('clears the failure count after a successful login', async () => {
+    await post(signup, { name: 'A', email: 'a@x.co', password: 'longenough' })
+    await post(login, { email: 'a@x.co', password: 'nope' })
+    expect(attempts).toHaveLength(1)
+    await post(login, { email: 'a@x.co', password: 'longenough' })
+    expect(attempts).toHaveLength(0)
+  })
   it('upgrades a legacy bcrypt hash to scrypt on successful login', async () => {
-    users.push({ id: 'legacy', email: 'old@x.co', name: 'Old', password_hash: await bcrypt.hash('old-password', 4), failed_logins: 0, locked_until: null })
+    users.push({ id: 'legacy', email: 'old@x.co', name: 'Old', password_hash: await bcrypt.hash('old-password', 4) })
     expect((await post(login, { email: 'old@x.co', password: 'old-password' })).status).toBe(200)
     expect(String(users[0].password_hash)).toMatch(/^scrypt\$/)
   })
@@ -165,5 +190,13 @@ describe('demo-owner script password format', () => {
     const key = scryptSync('demo-password', salt, 64, { N: 16384, r: 8, p: 1 })
     const scriptHash = `scrypt$16384$8$1$${salt.toString('base64')}$${key.toString('base64')}`
     expect((await verifyPassword(scriptHash, 'demo-password')).ok).toBe(true)
+  })
+})
+
+describe('JSON-only request bodies', async () => {
+  const { readJson } = await import('../api/_lib/http.js')
+  it('refuses bodies that are not application/json (e.g. a cross-site form post)', async () => {
+    await expect(readJson(new Request('http://x/', { method: 'POST', body: 'a=1', headers: { 'content-type': 'application/x-www-form-urlencoded' } }))).rejects.toMatchObject({ status: 415 })
+    await expect(readJson(new Request('http://x/', { method: 'POST', body: '{"a":1}', headers: { 'content-type': 'application/json; charset=utf-8' } }))).resolves.toEqual({ a: 1 })
   })
 })

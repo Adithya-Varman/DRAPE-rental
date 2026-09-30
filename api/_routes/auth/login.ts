@@ -10,33 +10,38 @@ export const LOCK_MINUTES = 10
 const WRONG = 'Wrong email or password.'
 
 // POST /api/auth/login { email, password } → { user } + session cookie.
-// 5 wrong passwords lock the account for 10 minutes. Unknown emails cost the same time as real ones.
+// Every email — registered or not — is treated the same way: same message, same time spent hashing, and the same
+// 10-minute lock after 5 misses (counted in login_attempts, per email address). So responses never reveal which
+// emails have accounts, or which accounts use Google.
 export const POST = route(async (request) => {
   const { email, password } = body.parse(await readJson(request))
-  const { data: user, error } = await db().from('users')
-    .select('id, email, name, password_hash, failed_logins, locked_until').eq('email', email).maybeSingle()
-  if (error) throw error
-  if (!user) { await burnPasswordCheck(password); throw new HttpError(401, WRONG) }
-  if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    throw new HttpError(429, `Too many wrong passwords — try again in ${Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60_000)} min.`)
+  const { data: attempts } = await db().from('login_attempts').select('failed, locked_until').eq('email', email).maybeSingle()
+  if (attempts?.locked_until && new Date(attempts.locked_until) > new Date()) {
+    const minutes = Math.ceil((new Date(attempts.locked_until).getTime() - Date.now()) / 60_000)
+    throw new HttpError(429, `Too many attempts for this email — try again in ${minutes} min.`)
   }
-  if (!user.password_hash) throw new HttpError(401, 'This account uses Google — tap “Continue with Google”.')
 
-  const { ok, needsRehash } = await verifyPassword(user.password_hash, password)
-  if (!ok) {
-    const failed = user.failed_logins + 1
+  const { data: user, error } = await db().from('users').select('id, email, name, password_hash').eq('email', email).maybeSingle()
+  if (error) throw error
+  let ok = false
+  let needsRehash = false
+  if (user?.password_hash) ({ ok, needsRehash } = await verifyPassword(user.password_hash, password))
+  else await burnPasswordCheck(password)
+
+  if (!user || !ok) {
+    const failed = (attempts?.failed ?? 0) + 1
     const lock = failed >= MAX_FAILED_LOGINS
-    await db().from('users').update({
-      failed_logins: lock ? 0 : failed,
+    await db().from('login_attempts').upsert({
+      email,
+      failed: lock ? 0 : failed,
       locked_until: lock ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null,
-    }).eq('id', user.id)
+      updated_at: new Date().toISOString(),
+    })
     throw new HttpError(401, WRONG)
   }
-  await db().from('users').update({
-    failed_logins: 0,
-    locked_until: null,
-    ...(needsRehash ? { password_hash: await hashPassword(password) } : {}),  // upgrade legacy bcrypt to scrypt
-  }).eq('id', user.id)
+
+  if (attempts) await db().from('login_attempts').delete().eq('email', email)
+  if (needsRehash) await db().from('users').update({ password_hash: await hashPassword(password) }).eq('id', user.id)  // bcrypt → scrypt
   const response = json({ user: { id: user.id, email: String(user.email), name: user.name } })
   response.headers.append('set-cookie', await createSession(request, user.id))
   return response

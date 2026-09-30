@@ -34,7 +34,7 @@ const upload = (bytes: Uint8Array = JPEG) => {
   form.append('image', new Blob([bytes as BlobPart]), 'photo.jpg')
   return analyze(new Request('http://x/api/listings/analyze', { method: 'POST', body: form }))
 }
-const post = (body: unknown) => create(new Request('http://x/api/listings', { method: 'POST', body: JSON.stringify(body) }))
+const post = (body: unknown) => create(new Request('http://x/api/listings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }))
 
 beforeEach(() => {
   fake = fakeDb()
