@@ -1,45 +1,43 @@
 #!/usr/bin/env node
-// Creates (or reuses) the shared demo owner account and gives it every listing that has no owner yet — so bookings
-// on the seeded listings notify someone you can log in as on stage. Safe to re-run.
+// Creates (or reuses) the shared demo owner account in our own users table and gives it every listing that has no
+// owner yet — so bookings on the seeded listings notify someone you can log in as on stage. Safe to re-run.
 //
 //   node --env-file=.env.local scripts/create-demo-owner.mjs [email] [password] ["Display Name"]
 //
 // With no arguments it uses owner@drape.demo and generates a strong password, printed once in your terminal.
 // Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (server keys — run this on your machine, never in the browser).
 
-import { randomBytes } from 'node:crypto'
+import { randomBytes, scryptSync } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
 const args = process.argv.slice(2)
-const email = args[0] ?? 'owner@drape.demo'
+const email = (args[0] ?? 'owner@drape.demo').trim().toLowerCase()
 const generated = !args[1]
 const password = args[1] ?? `drape-${randomBytes(9).toString('base64url')}`
 const name = args[2] ?? 'DRAPE Demo Owner'
-if (password.length < 6) { console.error('Password must be at least 6 characters.'); process.exit(1) }
+if (password.length < 8) { console.error('Password must be at least 8 characters.'); process.exit(1) }
 const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) { console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (use --env-file=.env.local).'); process.exit(1) }
 
-const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
-
-async function findUser(address) {
-  for (let page = 1; page < 50; page++) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 })
-    if (error) throw error
-    const hit = data.users.find((u) => u.email?.toLowerCase() === address.toLowerCase())
-    if (hit || data.users.length < 200) return hit ?? null
-  }
-  return null
+// Same format the API writes (api/_lib/passwords.ts): scrypt$N$r$p$salt$hash
+function hashPassword(pw) {
+  const salt = randomBytes(16)
+  const key = scryptSync(pw, salt, 64, { N: 16384, r: 8, p: 1 })
+  return `scrypt$16384$8$1$${salt.toString('base64')}$${key.toString('base64')}`
 }
 
-let user = await findUser(email)
+const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+
+let { data: user, error: findError } = await db.from('users').select('id').eq('email', email).maybeSingle()
+if (findError) { console.error('Could not look up the account:', findError.message); process.exit(1) }
 let created = false
 if (user) {
   console.log(`Account ${email} already exists — reusing it (password unchanged).`)
 } else {
-  created = true
-  const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } })
+  const { data, error } = await db.from('users').insert({ email, name, password_hash: hashPassword(password) }).select('id').single()
   if (error) { console.error('Could not create account:', error.message); process.exit(1) }
-  user = data.user
+  user = data
+  created = true
   console.log(`Created ${email} (${name}).`)
 }
 

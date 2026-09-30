@@ -26,11 +26,14 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 - **Bookings.** *Book this piece* lets you pick dates (up to 14 days, up to 90 days ahead) and pay a 20% advance
   (minimum ₹50). The rest is paid at pickup. The server recomputes every price, and a Postgres exclusion constraint
   makes double-booking impossible, even when two people pay at the same moment.
-- **Accounts + notifications.** Supabase Auth (email and password). Publishing and booking need an account; browsing,
+- **Accounts + notifications.** Our own accounts, not Supabase Auth: email + password stored in `users` (scrypt hashes,
+  5 wrong tries lock the account for 10 minutes), and sessions in an httpOnly, Secure, SameSite=Lax cookie whose SHA-256
+  is kept in `sessions`. **Continue with Google** goes through Supabase Auth's Google provider (PKCE); the verified
+  identity is copied into our `users` table and our own session starts. Publishing and booking need an account; browsing,
   search and the free contact reveal don't. When someone books, a database trigger creates a notification for the
   listing's owner **in the same transaction**, so it can't be lost. The owner sees it on the header bell (unread
-  badge) with the borrower's name, dates, amount paid and contact. The API verifies every access token with Supabase
-  and never trusts a user id sent by the browser.
+  badge) with the borrower's name, dates, amount paid and contact. The API resolves the user from the session cookie on
+  every request and never trusts a user id sent by the browser; state-changing requests from other sites are refused.
   **Payments are mocked for the demo** (`api/_lib/payments.ts`): no money moves. Replacing that one function with a
   real provider (e.g. a Razorpay order plus signature check) is the only change needed to go live.
 
@@ -53,7 +56,11 @@ Browser (Vite + React) ──▶ /api (Vercel Functions, bom1) ──▶ Supabas
 | `GET /api/listings/:id/complete` | "Complete the look": pieces that pair with this one (bottoms for a top, layers for a dress…) |
 | `POST /api/admin/retag` 🔑 | Re-run tagging on one listing (server key in `x-admin-key`; used by `scripts/retag-listings.mjs`) |
 
-🔒 = needs `Authorization: Bearer <Supabase access token>`; `POST /api/listings` (publishing) is 🔒 too.
+| `POST /api/auth/signup` · `/login` · `/logout` | Email + password accounts (sets / clears the `drape_session` cookie) |
+| `GET /api/auth/google` → `/api/auth/google/callback` | Continue with Google (Supabase provider, PKCE) |
+| `GET /api/auth/providers` | Which sign-in options are available |
+
+🔒 = needs the signed-in session cookie; `POST /api/listings` (publishing) is 🔒 too.
 | `GET /api/health` | Which services are configured |
 
 ## Run it locally
@@ -72,10 +79,12 @@ npm run dev                  # http://localhost:5173 — the dev server also ser
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → **secret** key |
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
 | `OPENAI_API_KEY` | Optional but recommended — search falls back to Gemini without it |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public, for sign-in in the browser. Supabase → Project Settings → API Keys → **Publishable** key |
 
-In Supabase → Authentication → Sign In / Providers, turn **Confirm email** off for the demo. The free email sender
-only allows a few emails per hour, so otherwise sign-ups wait on a confirmation link.
+**Google sign-in (optional):** in Supabase → Authentication → Sign In / Providers → **Google**, turn it on with a Google
+OAuth client (Google Cloud Console → Credentials → OAuth client ID, type *Web application*, authorized redirect URI
+`https://<project>.supabase.co/auth/v1/callback`). Then in Authentication → URL Configuration → **Redirect URLs** add
+`https://<your-site>/api/auth/google/callback` and `http://localhost:5173/api/auth/google/callback`. The button appears
+automatically once Google is enabled. No keys are needed in this app.
 
 All other keys are server-side only. Never prefix them with `VITE_`. Optional tuning: `GEMINI_VISION_MODEL`,
 `GEMINI_TEXT_MODEL`, `OPENAI_TEXT_MODEL`, `MATCH_FLOOR` (default `0.68`).
@@ -102,7 +111,8 @@ Run `node scripts/verify-prd.mjs https://drape-sable.vercel.app` first. It shoul
 1. **Hook (20 s).** "How many of you own an outfit you wore exactly once?" Then show the problem stat slide.
 2. **Upload (60 s).** Open **List Item**, then choose a phone photo of a real outfit. Tags appear in about 3 seconds.
    Tweak one chip (add an occasion), set size, ₹/day and pickup area, then **Publish**. It opens the live listing.
-   *(Before the demo, sign in as the demo owner in a second browser window, so the bell is ready.)*
+   *(Before the demo, run `scripts/create-demo-owner.mjs` and sign in as the demo owner in a second browser window, so the
+   bell is ready.)*
 3. **Search (60 s).** On **AI Stylist**, type "need something for a friend's sangeet, M, under ₹800". Results
    appear in about 2 seconds with distance chips, then a "why it fits" line on each card. Open one, then tap
    **Book this piece**. Pick dates, see the quote (rent, 20% advance, due at pickup), then **Pay advance**. It shows

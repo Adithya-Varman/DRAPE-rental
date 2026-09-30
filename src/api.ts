@@ -3,7 +3,6 @@ import type {
   AnalyzeResponse, Area, CreateListingInput, Draft, Listing, ReasonsResponse, SearchRequest, SearchResponse,
 } from '../shared/contracts'
 import type { Booking, BookingRequest, BookingResponse } from '../shared/booking'
-import { accessToken } from './supabase'
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown> = {}) {
@@ -13,11 +12,9 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
-  const token = await accessToken()
-  const headers = new Headers(init.headers)
-  if (token) headers.set('authorization', `Bearer ${token}`)
   try {
-    response = await fetch(path, { ...init, headers })
+    // Same-origin requests carry the httpOnly session cookie automatically; the browser never handles the token.
+    response = await fetch(path, { credentials: 'same-origin', ...init })
   } catch {
     throw new ApiError(0, 'network', 'You seem to be offline — check your connection and try again.')
   }
@@ -26,7 +23,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const code = typeof body.error === 'string' ? body.error : 'error'
     const message = code === 'rate_limited'
       ? `Our AI is busy right now — try again in ${body.retry_after ?? 30} seconds.`
-      : typeof body.message === 'string' ? body.message : 'Something went wrong. Please try again.'
+      : typeof body.message === 'string' ? body.message
+      : typeof body.error === 'string' && body.error.includes(' ') ? body.error
+      : code === 'invalid_request' && Array.isArray(body.issues) && body.issues[0]?.message ? String(body.issues[0].message)
+      : 'Something went wrong. Please try again.'
     throw new ApiError(response.status, code, message, body)
   }
   return body as T
@@ -59,6 +59,10 @@ export const api = {
   availability: (id: string) => request<{ booked: { start_date: string; end_date: string }[] }>(`/api/listings/${id}/availability`).then((r) => r.booked),
   book: (input: BookingRequest) => post<BookingResponse>('/api/bookings', input),
   myBookings: () => request<{ bookings: Booking[] }>('/api/bookings/mine').then((r) => r.bookings),
+  signup: (input: { name: string; email: string; password: string }) => post<{ user: Me }>('/api/auth/signup', input).then((r) => r.user),
+  login: (input: { email: string; password: string }) => post<{ user: Me }>('/api/auth/login', input).then((r) => r.user),
+  logout: () => post<{ ok: true }>('/api/auth/logout', {}),
+  providers: () => request<{ password: boolean; google: boolean }>('/api/auth/providers'),
   me: () => request<{ user: Me; stats: { listed: number; rentals: number; earned: number } }>('/api/me'),
   notifications: () => request<{ notifications: AppNotification[]; unread: number }>('/api/notifications'),
   markRead: (ids?: string[]) => post<{ ok: true }>('/api/notifications/read', { ids }),

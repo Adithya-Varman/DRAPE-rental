@@ -86,3 +86,7 @@ a.primary-button { text-decoration: none; }
 .auth-page .back-button { margin-top: 24px; }
 .profile-foot button:last-child { margin-left: auto; }
 @media (max-width: 650px) { .notifications-panel { top: 64px; } }
+/* Own auth (Phase 9): Google button + divider, reusing the outline button. */
+a.outline-button { text-decoration: none; }
+.google-button { gap: 10px; margin-top: 4px; }
+.auth-or { text-align: center; margin: 16px 0 0; }
