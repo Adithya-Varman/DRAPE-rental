@@ -67,6 +67,11 @@ export const api = {
   me: () => request<{ user: Me; stats: { listed: number; rentals: number; earned: number } }>('/api/me'),
   notifications: () => request<{ notifications: AppNotification[]; unread: number }>('/api/notifications'),
   markRead: (ids?: string[]) => post<{ ok: true }>('/api/notifications/read', { ids }),
+  cancelBooking: (id: string) => post<{ booking: Booking }>(`/api/bookings/${id}/cancel`, {}).then((r) => r.booking),
+  myListings: () => request<{ listings: OwnedListing[]; bookings: OwnerBooking[] }>('/api/me/listings'),
+  updateListing: (id: string, changes: Partial<CreateListingInput>) =>
+    request<{ listing: Listing }>(`/api/listings/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(changes) }).then((r) => r.listing),
+  deleteListing: (id: string) => request<{ ok: true }>(`/api/listings/${id}`, { method: 'DELETE' }),
 }
 
 export type Me = { id: string; email: string; name: string }
@@ -74,6 +79,8 @@ export type AppNotification = {
   id: string
   created_at: string
   read_at: string | null
-  type: 'booking_received'
-  booking: { id: string; start_date: string; end_date: string; days: number; total: number; advance: number; status: string; borrower_name: string; borrower_contact: string; listing: { id: string; title: string; image_url: string; area: string } } | null
+  type: 'booking_received' | 'booking_cancelled' | 'booking_declined'
+  booking: { id: string; start_date: string; end_date: string; days: number; total: number; advance: number; status: string; borrower_name: string; borrower_contact: string; listing: { id: string; title: string; image_url: string; area: string; owner_name?: string } } | null
 }
+export type OwnedListing = Listing & { owner_contact: string }
+export type OwnerBooking = { id: string; listing_id: string; start_date: string; end_date: string; days: number; total: number; advance: number; status: 'confirmed' | 'cancelled'; cancelled_by: 'borrower' | 'owner' | null; borrower_name: string; borrower_contact: string; listing: { title: string; image_url: string; area: string } }

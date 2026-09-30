@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_lib/ratelimit', () => ({ clientIp: () => 'test-ip', enforceLimit: async () => {}, LIMITS: new Proxy({}, { get: () => async () => {} }) }))
 import { burnPasswordCheck, hashPassword, verifyPassword } from '../api/_lib/passwords.js'
 import { cookie, hashToken, readCookie } from '../api/_lib/sessions.js'
 import { crossSite } from '../api/router.js'

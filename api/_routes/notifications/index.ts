@@ -7,7 +7,7 @@ import { db } from '../../_lib/supabase.js'
 export const GET = route(async (request) => {
   const user = await requireUser(request)
   const { data, error } = await db().from('notifications')
-    .select('id, created_at, read_at, type, booking:bookings(id, start_date, end_date, days, total, advance, status, borrower_name, borrower_contact, listing:listings(id, title, image_url, area))')
+    .select('id, created_at, read_at, type, booking:bookings(id, start_date, end_date, days, total, advance, status, cancelled_by, borrower_name, borrower_contact, listing:listings(id, title, image_url, area, owner_name))')
     .eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
   if (error) throw error
   const notifications = data ?? []

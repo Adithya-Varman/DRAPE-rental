@@ -30,6 +30,8 @@ async function match(embedding: number[], filters: Filters, area: Area, attempt:
     q_lng: area.lng,
     q_radius_km: attempt.radius_km ?? ANYWHERE_KM,
     k: RESULT_LIMIT,
+    q_exclude_categories: filters.exclude_categories.length ? filters.exclude_categories : null,
+    q_exclude_colors: filters.exclude_colors.length ? filters.exclude_colors : null,
   })
   if (error) throw error
   return data as Row[]

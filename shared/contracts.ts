@@ -69,6 +69,9 @@ export const parsedQuerySchema = z.object({
   max_price: z.number().int().positive().nullable(),
   gender: z.enum(['women', 'men']).nullable(),
   style_query: z.string().trim().min(1),
+  // Things the shopper explicitly doesn't want ("no sarees", "nothing black") — hard filters, never relaxed.
+  exclude_categories: z.array(categorySchema).max(6).default([]),
+  exclude_colors: z.array(z.string().trim().toLowerCase().min(1).max(20)).max(6).default([]),
 })
 export type ParsedQuery = z.infer<typeof parsedQuerySchema>
 

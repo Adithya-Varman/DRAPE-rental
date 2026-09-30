@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_lib/ratelimit', () => ({ clientIp: () => 'test-ip', enforceLimit: async () => {}, LIMITS: new Proxy({}, { get: () => async () => {} }) }))
 import { addDays, overlaps, quote, todayInIndia, validateDates } from '../shared/booking.js'
 import { fakeDb } from './fake-db.js'
 

@@ -1,6 +1,6 @@
 // Search-time AI (PRD §7.3): query parser and one batched "why it fits" call. The LLM never applies filters itself.
 import { parsedQuerySchema, type ParsedQuery } from '../../shared/contracts.js'
-import { OCCASION_LABELS, OCCASIONS, SIZES } from '../../shared/vocab.js'
+import { CATEGORIES, OCCASION_LABELS, OCCASIONS, SIZES } from '../../shared/vocab.js'
 import { withOneRetry } from './gemini.js'
 import { textJson } from './text-llm.js'
 
@@ -12,6 +12,9 @@ Return JSON only. Use null for anything the message does not clearly state — n
 - size: one of ${SIZES.join(', ')}, or null. Only if a size is stated ("M", "medium", "size L", "free size").
 - max_price: integer rupees per day, or null. "under ₹800", "below 800", "800 budget", "max 1k" → 800 / 1000.
 - gender: "women" or "men" only if the message clearly says who it is for ("for my brother", "men's", "for her"), else null.
+- exclude_categories: categories the shopper explicitly does NOT want, from the category list below ("no sarees" → saree,
+  "not a suit" → suit, "no jeans" → jeans). Empty if none. Categories: ${CATEGORIES.join(', ')}.
+- exclude_colors: colours explicitly NOT wanted, lowercase ("nothing black" → black). Empty if none.
 - style_query: rewrite the request as a short description of the ideal outfit, focusing on occasion, vibe, style, colours and
   practical needs (e.g. "comfortable to dance in"). Drop size and price. Never empty — if the message is vague, describe a
   versatile outfit for the stated purpose.`
@@ -20,8 +23,10 @@ const nullableEnum = (values: readonly string[]) => ({ type: ['string', 'null'],
 const PARSER_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['occasion', 'size', 'max_price', 'gender', 'style_query'],
+  required: ['occasion', 'size', 'max_price', 'gender', 'style_query', 'exclude_categories', 'exclude_colors'],
   properties: {
+    exclude_categories: { type: 'array', items: { type: 'string', enum: [...CATEGORIES] } },
+    exclude_colors: { type: 'array', items: { type: 'string' } },
     occasion: nullableEnum(OCCASIONS),
     size: nullableEnum(SIZES),
     max_price: { type: ['integer', 'null'] },
@@ -38,9 +43,11 @@ const PARSER_GEMINI_SCHEMA = {
     max_price: { type: 'INTEGER', nullable: true },
     gender: { type: 'STRING', enum: ['women', 'men'], nullable: true },
     style_query: { type: 'STRING' },
+    exclude_categories: { type: 'ARRAY', items: { type: 'STRING', enum: [...CATEGORIES] } },
+    exclude_colors: { type: 'ARRAY', items: { type: 'STRING' } },
   },
-  required: ['occasion', 'size', 'max_price', 'gender', 'style_query'],
-  propertyOrdering: ['occasion', 'size', 'max_price', 'gender', 'style_query'],
+  required: ['occasion', 'size', 'max_price', 'gender', 'style_query', 'exclude_categories', 'exclude_colors'],
+  propertyOrdering: ['occasion', 'size', 'max_price', 'gender', 'style_query', 'exclude_categories', 'exclude_colors'],
 }
 
 // A search should still work if the parser fails twice: fall back to pure semantic search on the raw text.
@@ -57,7 +64,7 @@ export async function parseQuery(query: string): Promise<{ parsed: ParsedQuery; 
     return { parsed, degraded: false }
   } catch (error) {
     console.error('Query parser failed, using raw query:', (error as Error).message)
-    return { parsed: { occasion: null, size: null, max_price: null, gender: null, style_query: query }, degraded: true }
+    return { parsed: { occasion: null, size: null, max_price: null, gender: null, style_query: query, exclude_categories: [], exclude_colors: [] }, degraded: true }
   }
 }
 

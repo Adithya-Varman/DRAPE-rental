@@ -27,6 +27,8 @@ export type Booking = {
   payment_ref: string
   borrower_name?: string
   borrower_contact?: string
+  cancelled_at?: string | null
+  cancelled_by?: 'borrower' | 'owner' | null
   listing: { title: string; image_url: string; area: string; owner_name: string; owner_contact: string }
 }
 export type BookingResponse = { booking: Booking }

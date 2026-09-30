@@ -3,20 +3,20 @@ import { isGoodEnough, mergeFilters, planAttempts, relaxedMessage, WIDER_RADIUS_
 import { clampWords, queryEmbeddingText } from '../api/_lib/search-ai.js'
 import type { ParsedQuery } from '../shared/contracts.js'
 
-const parsed: ParsedQuery = { occasion: 'sangeet_mehendi', size: 'L', max_price: 2000, gender: null, style_query: 'festive outfit' }
+const parsed: ParsedQuery = { occasion: 'sangeet_mehendi', size: 'L', max_price: 2000, gender: null, style_query: 'festive outfit', exclude_categories: ['saree'], exclude_colors: [] }
 
 describe('mergeFilters', () => {
   it('lets UI chips override the parser', () => {
-    expect(mergeFilters(parsed, { size: 'M', max_price: 600 })).toEqual({ size: 'M', max_price: 600, gender: null })
+    expect(mergeFilters(parsed, { size: 'M', max_price: 600 })).toEqual({ size: 'M', max_price: 600, gender: null, exclude_categories: ['saree'], exclude_colors: [] })
   })
   it('keeps parser values when no chip is set', () => {
-    expect(mergeFilters(parsed, {})).toEqual({ size: 'L', max_price: 2000, gender: null })
+    expect(mergeFilters(parsed, {})).toEqual({ size: 'L', max_price: 2000, gender: null, exclude_categories: ['saree'], exclude_colors: [] })
   })
 })
 
 describe('planAttempts (fallback ladder)', () => {
   it('goes 10 km → 25 km → drop budget → drop radius', () => {
-    expect(planAttempts({ size: 'M', max_price: 800, gender: null })).toEqual([
+    expect(planAttempts({ size: 'M', max_price: 800, gender: null, exclude_categories: [], exclude_colors: [] })).toEqual([
       { step: 'strict', radius_km: 10, max_price: 800 },
       { step: 'wider_radius', radius_km: WIDER_RADIUS_KM, max_price: 800 },
       { step: 'no_budget', radius_km: WIDER_RADIUS_KM, max_price: null },
@@ -24,11 +24,11 @@ describe('planAttempts (fallback ladder)', () => {
     ])
   })
   it('skips the budget step when there is no budget', () => {
-    expect(planAttempts({ size: null, max_price: null, gender: null }).map((a) => a.step)).toEqual(['strict', 'wider_radius', 'no_radius'])
+    expect(planAttempts({ size: null, max_price: null, gender: null, exclude_categories: [], exclude_colors: [] }).map((a) => a.step)).toEqual(['strict', 'wider_radius', 'no_radius'])
   })
   it('never relaxes size or gender', () => {
     // Attempts only carry radius and budget; size and gender come from the filters on every step.
-    for (const attempt of planAttempts({ size: 'M', max_price: 800, gender: 'men' })) {
+    for (const attempt of planAttempts({ size: 'M', max_price: 800, gender: 'men', exclude_categories: ['saree'], exclude_colors: [] })) {
       expect(Object.keys(attempt).sort()).toEqual(['max_price', 'radius_km', 'step'])
     }
   })
@@ -47,7 +47,7 @@ describe('isGoodEnough (match floor)', () => {
 })
 
 describe('relaxedMessage', () => {
-  const f = { size: 'M' as const, max_price: 800, gender: null }
+  const f = { size: 'M' as const, max_price: 800, gender: null, exclude_categories: [], exclude_colors: [] }
   it('is null when nothing was relaxed', () => {
     expect(relaxedMessage(planAttempts(f)[0], f, 'Adyar', [500])).toBeNull()
   })
@@ -58,7 +58,7 @@ describe('relaxedMessage', () => {
     expect(relaxedMessage(planAttempts(f)[2], f, 'Adyar', [650, 1200])).toBe('No good match under ₹800 near Adyar, so here are options up to ₹1,200 within 25 km.')
   })
   it('announces the dropped radius', () => {
-    const noBudget = { size: null, max_price: null, gender: null }
+    const noBudget = { size: null, max_price: null, gender: null, exclude_categories: [], exclude_colors: [] }
     expect(relaxedMessage(planAttempts(noBudget)[2], noBudget, 'Tambaram', [900])).toBe('No good match within 25 km of Tambaram, so here are the closest matches across Chennai.')
   })
 })
