@@ -94,3 +94,14 @@ a.outline-button { text-decoration: none; }
 .hero-visual picture { display: contents; }
 .load-more { display: flex; justify-content: center; padding: 0 clamp(24px, 6.3vw, 92px) 70px; margin-top: -30px; }
 .complete-look { margin-top: 64px; }
+/* Phase 11: cancel / decline, My Listings. Additive, built from existing tokens. */
+.rental-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.outline-button.danger, .text-button.danger { color: #f0a3a3; border-color: rgba(240,163,163,.4); }
+.status-pill.cancelled { color: #f0a3a3; }
+.status-pill.cancelled span { background: #f0a3a3; }
+.my-listings .rental-card { margin-top: 18px; }
+.my-listings-tabs { margin-top: 36px; }
+.my-listings .wardrobe-card .product-image-button { height: 240px; border-radius: 0; }
+.listing-actions { display: flex; gap: 14px; margin-top: 10px; }
+.listing-actions .text-button { font-size: 11px; }
+.edit-listing { margin: 10px 0 24px; }

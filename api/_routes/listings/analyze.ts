@@ -1,6 +1,7 @@
 import { isAdmin } from '../../_lib/admin.js'
 import { requireUser } from '../../_lib/auth.js'
 import { RateLimitError } from '../../_lib/gemini.js'
+import { LIMITS } from '../../_lib/ratelimit.js'
 import { HttpError, json, route } from '../../_lib/http.js'
 import { readImage, removeImage, storeImage } from '../../_lib/images.js'
 import { analyzeImage } from '../../_lib/vision.js'
@@ -8,7 +9,7 @@ import { analyzeImage } from '../../_lib/vision.js'
 // POST /api/listings/analyze (multipart: image) → { image_url, draft } | { error: "not_clothing" }
 // Signed-in users only (or the server key for seed/readiness scripts): each call spends AI quota and stores a photo.
 export const POST = route(async (request) => {
-  if (!isAdmin(request)) await requireUser(request)
+  if (!isAdmin(request)) await LIMITS.analyze((await requireUser(request)).id)
   const image = await readImage(request)
   // Upload and tagging are independent, so run them together to keep the wait under the PRD's 10 s.
   const [stored, vision] = await Promise.allSettled([

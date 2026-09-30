@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_lib/ratelimit', () => ({ clientIp: () => 'test-ip', enforceLimit: async () => {}, LIMITS: new Proxy({}, { get: () => async () => {} }) }))
 import { fakeDb } from './fake-db'
 
 let fake = fakeDb()
@@ -7,6 +8,7 @@ vi.mock('../api/_lib/supabase', async (importOriginal) => {
   return { ...actual, db: () => fake.client }
 })
 
+vi.mock('../api/_lib/auth', () => ({ requireUser: async () => ({ id: 'u1', email: 'u@x.co', name: 'U' }), getUser: async () => null }))
 const { GET: listListings } = await import('../api/_routes/listings/index')
 const { GET: getListing } = await import('../api/_routes/listings/[id]/index')
 const { GET: getContact } = await import('../api/_routes/listings/[id]/contact')

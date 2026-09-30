@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { HttpError, json, readJson, route } from '../../_lib/http.js'
 import { burnPasswordCheck, hashPassword, verifyPassword } from '../../_lib/passwords.js'
+import { clientIp, LIMITS } from '../../_lib/ratelimit.js'
 import { createSession } from '../../_lib/sessions.js'
 import { db } from '../../_lib/supabase.js'
 
@@ -14,6 +15,7 @@ const WRONG = 'Wrong email or password.'
 // 10-minute lock after 5 misses (counted in login_attempts, per email address). So responses never reveal which
 // emails have accounts, or which accounts use Google.
 export const POST = route(async (request) => {
+  await LIMITS.login(clientIp(request))  // per IP, on top of the per-email lockout
   const { email, password } = body.parse(await readJson(request))
   const { data: attempts } = await db().from('login_attempts').select('failed, locked_until').eq('email', email).maybeSingle()
   if (attempts?.locked_until && new Date(attempts.locked_until) > new Date()) {

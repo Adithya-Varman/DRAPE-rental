@@ -4,12 +4,14 @@ import { requireUser } from '../../_lib/auth.js'
 import { BOOKING_COLUMNS, toBooking } from '../../_lib/bookings.js'
 import { HttpError, json, readJson, route } from '../../_lib/http.js'
 import { chargeAdvance } from '../../_lib/payments.js'
+import { LIMITS } from '../../_lib/ratelimit.js'
 import { db } from '../../_lib/supabase.js'
 
 // POST /api/bookings (signed in) → { booking }. Price, advance and dates are all recomputed and checked here; the
 // database's exclusion constraint is the final word on double-booking.
 export const POST = route(async (request) => {
   const user = await requireUser(request)
+  await LIMITS.booking(user.id)
   const input = bookingRequestSchema.parse(await readJson(request))
   const problem = validateDates(input.start_date, input.end_date)
   if (problem) throw new HttpError(400, problem)

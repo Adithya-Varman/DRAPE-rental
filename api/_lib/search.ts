@@ -6,8 +6,9 @@ import { parseQuery, queryEmbeddingText } from './search-ai.js'
 import { db, getArea } from './supabase.js'
 
 export const RESULT_LIMIT = 12
-export const CATEGORY_RESULT_LIMIT = 48
 export const REASON_COUNT = 6
+// Asking for a kind of piece ("pants") searches the whole city and a larger pool, then keeps only those categories.
+export const CATEGORY_RESULT_LIMIT = 48
 // "No radius" still passes a radius so distance_km stays populated; 1000 km covers all of the city scope.
 const ANYWHERE_KM = 1000
 
@@ -31,6 +32,8 @@ async function match(embedding: number[], filters: Filters, area: Area, attempt:
     q_lng: area.lng,
     q_radius_km: filters.categories.length ? ANYWHERE_KM : attempt.radius_km ?? ANYWHERE_KM,
     k: filters.categories.length ? CATEGORY_RESULT_LIMIT : RESULT_LIMIT,
+    q_exclude_categories: filters.exclude_categories.length ? filters.exclude_categories : null,
+    q_exclude_colors: filters.exclude_colors.length ? filters.exclude_colors : null,
   })
   if (error) throw error
   const rows = data as Row[]

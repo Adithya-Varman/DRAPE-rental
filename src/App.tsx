@@ -5,11 +5,11 @@ import {
 } from 'lucide-react'
 import type { Area, Draft, Listing, SearchResponse } from '../shared/contracts'
 import { CATEGORIES, GENDERS, OCCASIONS, SIZES, type Size } from '../shared/vocab'
-import { api, ApiError, type AppNotification, type Me } from './api'
+import { api, ApiError, type AppNotification, type Me, type OwnedListing, type OwnerBooking } from './api'
 import { addDays, overlaps, quote, todayInIndia, validateDates, MAX_DAYS_AHEAD, type Booking } from '../shared/booking'
 import { categoryLabel, downscaleImage, formatDate, formatKm, formatRange, kmBetween, occasionLabel, rupees, storage, titleCase } from './lib'
 
-type Page = 'ai' | 'explore' | 'rentals' | 'list' | 'profile' | 'wardrobe'
+type Page = 'ai' | 'explore' | 'rentals' | 'list' | 'profile' | 'wardrobe' | 'mylistings'
 // A listing as the UI sees it: from GET /api/listings, GET /api/listings/:id, or a search result.
 type Piece = Listing & { reason?: string | null; similarity?: number }
 type SearchFilters = { size?: Size; max_price?: number }
@@ -192,6 +192,7 @@ function App() {
       {page === 'list' && <ListItem me={me} onNeedAuth={() => askSignIn('Sign in to publish your piece')} areas={areaOptions} defaultArea={area} onPublished={(listing) => { notify('Your piece is live — it shows up in search right now'); setNearby((current) => [listing, ...(current ?? [])].slice(0, 4)); openPiece(listing) }} onError={notify} />}
       {page === 'profile' && <Profile me={me} favorites={favorites.length} onPage={setPage} onSignIn={() => askSignIn('Sign in to see your profile')} onSignOut={signOut} />}
       {page === 'wardrobe' && <Wardrobe onExplore={() => setPage('explore')} />}
+      {page === 'mylistings' && <MyListings me={me} areas={areaOptions} onSignIn={() => askSignIn('Sign in to manage your listings')} onOpen={openListing} onList={() => setPage('list')} notify={notify} />}
     </main>
     <div className="mobile-bottom-nav">{(['ai', 'explore', 'rentals', 'list', 'profile'] as Page[]).map((item) => <button className={page === item ? 'active' : ''} key={item} onClick={() => setPage(item)}><span>{item === 'ai' ? <Gem size={17} /> : item === 'explore' ? <Search size={17} /> : item === 'rentals' ? <Check size={17} /> : item === 'list' ? <Plus size={18} /> : <UserRound size={17} />}</span>{item === 'ai' ? 'AI' : item === 'list' ? 'List' : item[0].toUpperCase() + item.slice(1)}</button>)}</div>
     {toastNode}
@@ -247,6 +248,8 @@ function ParsedSummary({ parsed }: { parsed: SearchResponse['parsed'] }) {
     parsed.size && (parsed.size === 'FREE' ? 'Free size' : `Size ${parsed.size}`),
     parsed.max_price && `Under ${rupees(parsed.max_price)}/day`,
     parsed.gender && (parsed.gender === 'men' ? "Men's" : "Women's"),
+    [...(parsed.exclude_categories ?? []).map((c) => categoryLabel(c).toLowerCase()), ...(parsed.exclude_colors ?? [])].length > 0 &&
+      `No ${[...(parsed.exclude_categories ?? []).map((c) => categoryLabel(c).toLowerCase() + 's'), ...(parsed.exclude_colors ?? [])].join(', ')}`,
   ].filter(Boolean)
   return parts.length ? <>Looking for: {parts.join(' · ')}.</> : null
 }
@@ -297,6 +300,7 @@ function ProductDetail({ piece: initial, distance, area, context, favorite, onFa
   // Search results carry only the fields needed for cards; load the full listing (colours, owner, formality…).
   useEffect(() => { api.listing(initial.id).then((full) => setPiece((current) => ({ ...full, reason: current.reason, distance_km: current.distance_km }))).catch(() => undefined) }, [initial.id])
   const revealContact = async () => {
+    if (!me) { onNeedAuth(); return }  // contacts are for signed-in members only (stops bulk scraping)
     setContact({ state: 'loading' })
     try { setContact({ state: 'shown', value: (await api.contact(piece.id)).owner_contact }) } catch { setContact({ state: 'error' }) }
   }
@@ -310,7 +314,7 @@ function ProductDetail({ piece: initial, distance, area, context, favorite, onFa
   ].filter((reason): reason is string => Boolean(reason))
   const contactHref = contact.value && (/@/.test(contact.value) ? `mailto:${contact.value}` : /^[+\d][\d\s-]{6,}$/.test(contact.value) ? `tel:${contact.value.replace(/[\s-]/g, '')}` : undefined)
   return <div className="detail-page"><button className="back-button" onClick={onBack}><ArrowLeft size={16} /> {context ? 'Back to results' : 'Back'}</button><div className="detail-layout"><div className="detail-gallery"><img src={piece.image_url} alt={piece.title} /><div className="gallery-caption"><MapPin size={14} /> {km && km !== 'Nearby' ? `${km} from you · ${piece.area}` : `In ${piece.area}`}</div></div><div className="detail-info"><div className="detail-label">{categoryLabel(piece.category).toUpperCase()}{piece.style_tags[0] ? ` · ${piece.style_tags[0].toUpperCase()}` : ''}</div><h1>{piece.title}</h1><div className="detail-price"><strong>{rupees(piece.price_per_day)}</strong> / day</div><p className="detail-description">{piece.description}</p><div className="owner-row" role="button" tabIndex={0} aria-label="Show the owner's contact" onClick={() => contact.state !== 'shown' && contact.state !== 'loading' && revealContact()} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && contact.state !== 'shown') { event.preventDefault(); revealContact() } }}><div className="owner-avatar">{(piece.owner_name ?? '·')[0]}</div><div><strong>{piece.owner_name ?? 'Nearby owner'}</strong>
-      <span>{contact.state === 'shown' && contact.value ? (contactHref ? <a href={contactHref} onClick={(event) => event.stopPropagation()}>{contact.value}</a> : contact.value) : contact.state === 'loading' ? 'Revealing contact…' : contact.state === 'error' ? 'Couldn’t load contact — tap to retry' : <>Nearby owner · {piece.area}{km && km !== 'Nearby' ? ` · ${km} away` : ''} · Tap to show contact</>}</span></div><ChevronRight size={17} /></div><div className="detail-actions">
+      <span>{contact.state === 'shown' && contact.value ? (contactHref ? <a href={contactHref} onClick={(event) => event.stopPropagation()}>{contact.value}</a> : contact.value) : contact.state === 'loading' ? 'Revealing contact…' : contact.state === 'error' ? 'Couldn’t load contact — tap to retry' : <>Nearby owner · {piece.area}{km && km !== 'Nearby' ? ` · ${km} away` : ''} · {me ? 'Tap to show contact' : 'Sign in to see contact'}</>}</span></div><ChevronRight size={17} /></div><div className="detail-actions">
     <button className="primary-button" onClick={() => setBooking(true)} aria-expanded={booking}>Book this piece <ArrowUpRight size={17} /></button>
     <button className={`save-button ${favorite ? 'saved' : ''}`} onClick={onFavorite}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /> {favorite ? 'Saved' : 'Save'}</button></div>
     {booking && <BookingPanel piece={piece} me={me} onNeedAuth={onNeedAuth} onBooked={onBooked} onViewRentals={onViewRentals} />}
@@ -407,7 +411,18 @@ function BookingPanel({ piece, me, onNeedAuth, onBooked, onViewRentals }: { piec
 function Rentals({ me, onSignIn, onExplore, onOpen }: { me: Me | null; onSignIn: () => void; onExplore: () => void; onOpen: (listingId: string) => void }) {
   const [bookings, setBookings] = useState<Booking[] | null>(null)
   const [tab, setTab] = useState<'upcoming' | 'active' | 'past'>('upcoming')
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState('')
   useEffect(() => { if (!me) { setBookings([]); return } setBookings(null); api.myBookings().then(setBookings).catch(() => setBookings([])) }, [me])
+  const cancel = async (id: string) => {
+    setBusy(id); setError('')
+    try {
+      const updated = await api.cancelBooking(id)
+      setBookings((list) => (list ?? []).map((b) => b.id === id ? { ...b, ...updated } : b))
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Couldn’t cancel — please try again.') }
+    setBusy(null); setConfirming(null)
+  }
   const today = todayInIndia()
   const groups = {
     upcoming: (bookings ?? []).filter((b) => b.start_date > today),
@@ -417,7 +432,13 @@ function Rentals({ me, onSignIn, onExplore, onOpen }: { me: Me | null; onSignIn:
   const tabs: [typeof tab, string][] = [['upcoming', 'Upcoming'], ['active', 'Active'], ['past', 'Past']]
   return <div className="simple-page"><div className="page-intro compact"><div><span className="section-kicker">YOUR CLOSET, IN MOTION</span><h1>My <em>rentals</em></h1><p>Everything you have borrowed, in one place.</p></div></div><div className="tabs">{tabs.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{groups[key].length > 0 && <span>{groups[key].length}</span>}</button>)}</div>
     {bookings === null && <div className="rental-card is-loading" aria-hidden="true"><div className="rental-body"><span className="status-pill">Loading your bookings…</span></div></div>}
-    {groups[tab].map((b) => <div className="rental-card" key={b.id}><img src={b.listing.image_url} alt={b.listing.title} /><div className="rental-body"><span className="status-pill"><span /> {b.status === 'confirmed' ? (tab === 'past' ? 'Returned' : tab === 'active' ? 'With you now' : 'Confirmed') : 'Cancelled'}</span><h2>{b.listing.title}</h2><div className="rental-details"><div><span>Pickup</span><strong>{formatDate(b.start_date)}</strong></div><div><span>Return</span><strong>{formatDate(b.end_date)}</strong></div><div><span>Location</span><strong>{b.listing.area}, Chennai</strong></div><div><span>Owner</span><strong>{b.listing.owner_name} · {b.listing.owner_contact}</strong></div><div><span>Paid / due</span><strong>{rupees(b.advance)} / {rupees(b.total - b.advance)}</strong></div></div><button className="outline-button" onClick={() => onOpen(b.listing_id)}>View details <ArrowUpRight size={15} /></button></div></div>)}
+    {groups[tab].map((b) => <div className="rental-card" key={b.id}><img src={b.listing.image_url} alt={b.listing.title} /><div className="rental-body"><span className={`status-pill ${b.status === 'cancelled' ? 'cancelled' : ''}`}><span /> {b.status === 'confirmed' ? (tab === 'past' ? 'Returned' : tab === 'active' ? 'With you now' : 'Confirmed') : 'Cancelled'}</span><h2>{b.listing.title}</h2><div className="rental-details"><div><span>Pickup</span><strong>{formatDate(b.start_date)}</strong></div><div><span>Return</span><strong>{formatDate(b.end_date)}</strong></div><div><span>Location</span><strong>{b.listing.area}, Chennai</strong></div><div><span>Owner</span><strong>{b.listing.owner_name} · {b.listing.owner_contact}</strong></div><div><span>Paid / due</span><strong>{rupees(b.advance)} / {rupees(b.total - b.advance)}</strong></div></div><div className="rental-actions"><button className="outline-button" onClick={() => onOpen(b.listing_id)}>View details <ArrowUpRight size={15} /></button>
+      {b.status === 'confirmed' && tab !== 'past' && (confirming === b.id
+        ? <><button className="outline-button danger" onClick={() => cancel(b.id)} disabled={busy === b.id}>{busy === b.id ? 'Cancelling…' : `Yes, cancel & refund ${rupees(b.advance)}`}</button><button className="text-button" onClick={() => setConfirming(null)}>Keep it</button></>
+        : <button className="outline-button" onClick={() => setConfirming(b.id)}>Cancel booking</button>)}</div>
+      {b.status === 'cancelled' && <p className="field-label">{b.cancelled_by === 'owner' ? 'Declined by the owner' : 'You cancelled this'} · {rupees(b.advance)} advance refunded</p>}
+    </div></div>)}
+    {error && <p className="field-label booking-error" role="alert">{error}</p>}
     {!me ? <div className="empty-rental"><span className="empty-ring"><UserRound size={19} /></span><h2>Sign in to see your rentals.</h2><p>Your bookings follow your account across devices.</p><button className="text-button" onClick={onSignIn}>Sign in <ArrowUpRight size={15} /></button></div> : <div className="empty-rental"><span className="empty-ring"><Gem size={19} /></span><h2>{bookings !== null && groups[tab].length === 0 ? (tab === 'upcoming' ? 'No upcoming rentals yet.' : tab === 'active' ? 'Nothing with you right now.' : 'No past rentals yet.') : 'Your next look is nearby.'}</h2><p>Find something special to borrow for your next plan.</p><button className="text-button" onClick={onExplore}>Explore nearby pieces <ArrowUpRight size={15} /></button></div>}</div>
 }
 
@@ -566,7 +587,7 @@ function Profile({ me, favorites, onPage, onSignIn, onSignOut }: { me: Me | null
   if (!me) return <div className="simple-page profile-page"><div className="empty-rental"><span className="empty-ring"><UserRound size={19} /></span><h2>Your DRAPE profile</h2><p>Sign in to list pieces, book outfits and get notified when someone books yours.</p><button className="text-button" onClick={onSignIn}>Sign in or create an account <ArrowUpRight size={15} /></button></div></div>
   const [first, ...rest] = me.name.split(' ')
   const earned = stats ? (stats.earned >= 1000 ? `₹${(stats.earned / 1000).toFixed(1)}k` : rupees(stats.earned)) : '—'
-  return <div className="simple-page profile-page"><div className="profile-header"><div className="profile-avatar">{initials(me.name)}</div><div><span className="section-kicker">YOUR DRAPE PROFILE</span><h1>{first} {rest.length > 0 && <em>{rest.join(' ')}</em>}</h1><p><MapPin size={14} /> Chennai · {me.email}</p></div><button className="icon-button" aria-label="Settings"><Settings size={18} /></button></div><div className="stats"><div><strong>{stats ? String(stats.listed).padStart(2, '0') : '—'}</strong><span>Items listed</span></div><div><strong>{stats ? String(stats.rentals).padStart(2, '0') : '—'}</strong><span>Rentals</span></div><div><strong>{earned}</strong><span>Earned sharing</span></div></div><div className="profile-links">{([['rentals', 'My Rentals', stats ? `${stats.rentals} ${stats.rentals === 1 ? 'booking' : 'bookings'}` : 'Your bookings'], ['list', 'List a piece', stats ? `${stats.listed} ${stats.listed === 1 ? 'piece' : 'pieces'} listed so far` : 'Earn from your wardrobe'], ['explore', 'Saved Items', `${favorites} ${favorites === 1 ? 'piece' : 'pieces'} saved`], ['wardrobe', 'My Wardrobe', 'Plan looks from what you own']] as [Page, string, string][]).map(([key, title, subtitle]) => <button key={title} onClick={() => onPage(key)}><span className="link-icon"><Gem size={16} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><ChevronRight size={17} /></button>)}</div><div className="profile-foot"><button><Settings size={16} /> Settings</button><button>Help & support</button><button onClick={onSignOut}><UserRound size={16} /> Sign out</button></div></div>
+  return <div className="simple-page profile-page"><div className="profile-header"><div className="profile-avatar">{initials(me.name)}</div><div><span className="section-kicker">YOUR DRAPE PROFILE</span><h1>{first} {rest.length > 0 && <em>{rest.join(' ')}</em>}</h1><p><MapPin size={14} /> Chennai · {me.email}</p></div><button className="icon-button" aria-label="Settings"><Settings size={18} /></button></div><div className="stats"><div><strong>{stats ? String(stats.listed).padStart(2, '0') : '—'}</strong><span>Items listed</span></div><div><strong>{stats ? String(stats.rentals).padStart(2, '0') : '—'}</strong><span>Rentals</span></div><div><strong>{earned}</strong><span>Earned sharing</span></div></div><div className="profile-links">{([['rentals', 'My Rentals', stats ? `${stats.rentals} ${stats.rentals === 1 ? 'booking' : 'bookings'}` : 'Your bookings'], ['mylistings', 'My Listings', stats ? `${stats.listed} ${stats.listed === 1 ? 'piece' : 'pieces'} · edit, delete, see bookings` : 'Your pieces and their bookings'], ['explore', 'Saved Items', `${favorites} ${favorites === 1 ? 'piece' : 'pieces'} saved`], ['wardrobe', 'My Wardrobe', 'Plan looks from what you own']] as [Page, string, string][]).map(([key, title, subtitle]) => <button key={title} onClick={() => onPage(key)}><span className="link-icon"><Gem size={16} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><ChevronRight size={17} /></button>)}</div><div className="profile-foot"><button><Settings size={16} /> Settings</button><button>Help & support</button><button onClick={onSignOut}><UserRound size={16} /> Sign out</button></div></div>
 }
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '·'
@@ -586,13 +607,19 @@ function NotificationsPanel({ items, onOpen, onClose }: { items: AppNotification
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   return <div className="notifications-panel" role="dialog" aria-label="Notifications"><div className="ai-response-head"><span className="ai-avatar"><Bell size={13} /></span><span>NOTIFICATIONS</span><button className="response-label" onClick={onClose} aria-label="Close notifications"><X size={14} /></button></div>
-    {items.length === 0 && <p className="notification-empty">No notifications yet. When someone books one of your pieces, you’ll see it here with their contact.</p>}
+    {items.length === 0 && <p className="notification-empty">No notifications yet. Bookings of your pieces — and any cancellations — show up here.</p>}
     {items.map((n) => n.booking && <button className={`notification-item ${n.read_at ? '' : 'unread'}`} key={n.id} onClick={() => onOpen(n.booking!.listing.id)}>
       <img src={n.booking.listing.image_url} alt="" />
-      <span><strong>{n.booking.borrower_name} booked your {n.booking.listing.title}</strong>
+      {n.type === 'booking_received' && <span><strong>{n.booking.borrower_name} booked your {n.booking.listing.title}</strong>
         <small>{formatRange(n.booking.start_date, n.booking.end_date)} · {rupees(n.booking.advance)} advance paid · {rupees(n.booking.total - n.booking.advance)} due at pickup</small>
         <small>Contact: {n.booking.borrower_contact}</small>
-        <small className="notification-time">{timeAgo(n.created_at)}</small></span>
+        <small className="notification-time">{timeAgo(n.created_at)}</small></span>}
+      {n.type === 'booking_cancelled' && <span><strong>{n.booking.borrower_name} cancelled their booking of your {n.booking.listing.title}</strong>
+        <small>{formatRange(n.booking.start_date, n.booking.end_date)} is free again · their {rupees(n.booking.advance)} advance was refunded</small>
+        <small className="notification-time">{timeAgo(n.created_at)}</small></span>}
+      {n.type === 'booking_declined' && <span><strong>{n.booking.listing.owner_name ?? 'The owner'} declined your booking of {n.booking.listing.title}</strong>
+        <small>{formatRange(n.booking.start_date, n.booking.end_date)} · your {rupees(n.booking.advance)} advance was refunded</small>
+        <small className="notification-time">{timeAgo(n.created_at)}</small></span>}
     </button>)}
   </div>
 }
@@ -640,3 +667,68 @@ function GoogleMark() {
 function Wardrobe({ onExplore }: { onExplore: () => void }) { return <div className="simple-page wardrobe-page"><div className="page-intro compact"><div><span className="section-kicker">WHAT YOU ALREADY OWN</span><h1>My <em>wardrobe</em></h1><p>Build a look from what is yours, then fill the gaps nearby.</p></div></div><div className="wardrobe-summary"><div><strong>12</strong><span>Total pieces</span></div><div><strong>04</strong><span>Outfit ideas</span></div><button className="primary-button" onClick={onExplore}>Build an outfit <ArrowUpRight size={16} /></button></div><div className="wardrobe-grid">{products.slice(0, 4).map((product) => <div className="wardrobe-card" key={product.id}><img src={product.image} alt={product.name} /><div><strong>{product.name}</strong><span>{product.category} · {product.color}</span></div></div>)}</div><div className="demand-note"><Gem size={17} /><div><strong>You already have the trousers and shoes.</strong><p>You only need a blazer to complete your dinner look.</p></div><button className="text-button" onClick={onExplore}>Find nearby <ArrowUpRight size={15} /></button></div></div> }
 
 export default App
+
+function MyListings({ me, areas, onSignIn, onOpen, onList, notify }: { me: Me | null; areas: string[]; onSignIn: () => void; onOpen: (id: string) => void; onList: () => void; notify: (m: string) => void }) {
+  const [data, setData] = useState<{ listings: OwnedListing[]; bookings: OwnerBooking[] } | null>(null)
+  const [editing, setEditing] = useState<OwnedListing | null>(null)
+  const [confirm, setConfirm] = useState<string | null>(null)  // "delete:<id>" or "decline:<id>"
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(() => { api.myListings().then(setData).catch(() => setData({ listings: [], bookings: [] })) }, [])
+  useEffect(() => { if (me) load(); else setData(null) }, [me, load])
+  if (!me) return <div className="simple-page"><div className="empty-rental"><span className="empty-ring"><UserRound size={19} /></span><h2>Sign in to manage your listings.</h2><p>Edit prices, remove pieces and see who has booked them.</p><button className="text-button" onClick={onSignIn}>Sign in <ArrowUpRight size={15} /></button></div></div>
+  const today = todayInIndia()
+  const upcoming = (data?.bookings ?? []).filter((b) => b.status === 'confirmed' && b.end_date >= today)
+  const run = async (fn: () => Promise<unknown>, done: string) => {
+    setBusy(true)
+    try { await fn(); notify(done); load() } catch (e) { notify(e instanceof ApiError ? e.message : 'Something went wrong — please try again.') }
+    setBusy(false); setConfirm(null)
+  }
+  return <div className="simple-page my-listings"><div className="page-intro compact"><div><span className="section-kicker">YOUR PIECES, EARNING</span><h1>My <em>listings</em></h1><p>{data ? `${data.listings.length} ${data.listings.length === 1 ? 'piece' : 'pieces'} listed · ${upcoming.length} upcoming ${upcoming.length === 1 ? 'booking' : 'bookings'}` : 'Loading…'}</p></div></div>
+    {upcoming.length > 0 && <><div className="tabs"><button className="active">Bookings on your pieces <span>{upcoming.length}</span></button></div>
+      {upcoming.map((b) => <div className="rental-card" key={b.id}><img src={b.listing.image_url} alt={b.listing.title} /><div className="rental-body"><span className="status-pill"><span /> Booked</span><h2>{b.listing.title}</h2><div className="rental-details"><div><span>Borrower</span><strong>{b.borrower_name} · {b.borrower_contact}</strong></div><div><span>Pickup</span><strong>{formatDate(b.start_date)}</strong></div><div><span>Return</span><strong>{formatDate(b.end_date)}</strong></div><div><span>Paid / due</span><strong>{rupees(b.advance)} / {rupees(b.total - b.advance)}</strong></div></div>
+        <div className="rental-actions">{confirm === `decline:${b.id}`
+          ? <><button className="outline-button danger" disabled={busy} onClick={() => run(() => api.cancelBooking(b.id), 'Booking declined — the borrower has been notified and refunded')}>{busy ? 'Declining…' : 'Yes, decline & refund'}</button><button className="text-button" onClick={() => setConfirm(null)}>Keep it</button></>
+          : <button className="outline-button" onClick={() => setConfirm(`decline:${b.id}`)}>Decline booking</button>}</div></div></div>)}</>}
+    {editing && <EditListing listing={editing} areas={areas} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); notify('Saved — search is updated too'); load() }} />}
+    <div className="tabs my-listings-tabs"><button className="active">Your pieces {data && <span>{data.listings.length}</span>}</button></div>
+    {data && data.listings.length === 0 && <div className="empty-rental"><span className="empty-ring"><Plus size={19} /></span><h2>Nothing listed yet.</h2><p>Snap a photo — AI fills in the details.</p><button className="text-button" onClick={onList}>List a piece <ArrowUpRight size={15} /></button></div>}
+    <div className="wardrobe-grid">{(data?.listings ?? []).map((l) => <div className="wardrobe-card" key={l.id}><button className="product-image-button" onClick={() => onOpen(l.id)}><img src={l.image_url} alt={l.title} loading="lazy" /></button><div><strong>{l.title}</strong><span>{rupees(l.price_per_day)} / day · {l.size === 'FREE' ? 'Free size' : l.size} · {l.area}</span>
+      <div className="listing-actions">{confirm === `delete:${l.id}`
+        ? <><button className="text-button danger" disabled={busy} onClick={() => run(() => api.deleteListing(l.id), 'Listing deleted')}>{busy ? 'Deleting…' : 'Yes, delete'}</button><button className="text-button" onClick={() => setConfirm(null)}>Keep</button></>
+        : <><button className="text-button" onClick={() => { setEditing(l); window.scrollTo(0, 0) }}>Edit</button><button className="text-button" onClick={() => setConfirm(`delete:${l.id}`)}>Delete</button></>}</div></div></div>)}</div>
+  </div>
+}
+
+function EditListing({ listing, areas, onCancel, onSaved }: { listing: OwnedListing; areas: string[]; onCancel: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ title: listing.title, description: listing.description, price: String(listing.price_per_day), size: listing.size as Size, area: listing.area, occasions: listing.occasions, owner_contact: listing.owner_contact })
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    const price = Number(form.price)
+    if (form.title.trim().length < 3 || form.description.trim().length < 10 || !(price > 0) || form.occasions.length === 0) { setError('Add a title, a description, a price and at least one occasion.'); return }
+    setSaving(true); setError('')
+    try {
+      const changes: Record<string, unknown> = {}
+      if (form.title.trim() !== listing.title) changes.title = form.title.trim()
+      if (form.description.trim() !== listing.description) changes.description = form.description.trim()
+      if (price !== listing.price_per_day) changes.price_per_day = price
+      if (form.size !== listing.size) changes.size = form.size
+      if (form.area !== listing.area) changes.area = form.area
+      if (form.occasions.join() !== listing.occasions.join()) changes.occasions = form.occasions
+      if (form.owner_contact.trim() !== listing.owner_contact) changes.owner_contact = form.owner_contact.trim()
+      if (Object.keys(changes).length) await api.updateListing(listing.id, changes)
+      onSaved()
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Couldn’t save — please try again.'); setSaving(false) }
+  }
+  return <div className="why-match booking-panel edit-listing"><div className="why-title booking-title"><Settings size={16} /> Edit “{listing.title}”</div>
+    <span className="field-label">Title</span><div className="explore-search field"><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} aria-label="Title" /></div>
+    <div className="chip-row"><SelectChip label="Pickup area" value={form.area} options={areas.map((a) => [a, a])} onChange={(area) => setForm({ ...form, area })} /></div>
+    <span className="field-label">Price per day</span><div className="explore-search field">₹<input inputMode="numeric" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value.replace(/\D/g, '').slice(0, 6) })} aria-label="Price per day in rupees" /></div>
+    <span className="field-label">Size</span><ToggleChips single options={SIZES.map((s) => [s, s === 'FREE' ? 'Free size' : s])} selected={[form.size]} onChange={([size]) => size && setForm({ ...form, size: size as Size })} />
+    <span className="field-label">Occasions</span><ToggleChips options={OCCASIONS.map((o) => [o, occasionLabel(o)])} selected={form.occasions} onChange={(occasions) => setForm({ ...form, occasions })} />
+    <span className="field-label">Description</span><div className="explore-search field"><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} aria-label="Description" /></div>
+    <span className="field-label">Your phone or email</span><div className="explore-search field"><input value={form.owner_contact} onChange={(e) => setForm({ ...form, owner_contact: e.target.value })} aria-label="Contact" /></div>
+    {error && <p className="field-label booking-error" role="alert">{error}</p>}
+    <div className="detail-actions booking-actions"><button className="primary-button" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'} <ArrowUpRight size={17} /></button><button className="outline-button" onClick={onCancel}>Cancel</button></div>
+  </div>
+}

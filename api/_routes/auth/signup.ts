@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { HttpError, json, readJson, route } from '../../_lib/http.js'
 import { hashPassword, MIN_PASSWORD_LENGTH } from '../../_lib/passwords.js'
+import { clientIp, LIMITS } from '../../_lib/ratelimit.js'
 import { createSession } from '../../_lib/sessions.js'
 import { db } from '../../_lib/supabase.js'
 
@@ -12,6 +13,7 @@ const body = z.object({
 
 // POST /api/auth/signup { name, email, password } → { user } + session cookie
 export const POST = route(async (request) => {
+  await LIMITS.signup(clientIp(request))
   const input = body.parse(await readJson(request))
   const { data, error } = await db().from('users')
     .insert({ name: input.name, email: input.email, password_hash: await hashPassword(input.password) })

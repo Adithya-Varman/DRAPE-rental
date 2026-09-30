@@ -7,6 +7,8 @@ export type Filters = {
   max_price: number | null
   gender: ParsedQuery['gender']
   categories: ParsedQuery['categories']
+  exclude_categories: string[]
+  exclude_colors: string[]
 }
 
 export type Attempt = {
@@ -34,12 +36,14 @@ export function mergeFilters(parsed: ParsedQuery, request: Pick<SearchRequest, '
     size: request.size ?? parsed.size,
     max_price: request.max_price ?? parsed.max_price,
     gender: parsed.gender,
-    categories: parsed.categories,
+    categories: parsed.categories ?? [],
+    exclude_categories: parsed.exclude_categories ?? [],
+    exclude_colors: parsed.exclude_colors ?? [],
   }
 }
 
 // 10 km → 25 km → drop the budget → drop the radius. Steps that would repeat the previous query are skipped.
-// Size and gender are never relaxed: a dress that doesn't fit or suit the person is not a match.
+// Size, gender and exclusions are never relaxed: a dress that doesn't fit, or a saree after "no sarees", is not a match.
 export function planAttempts(filters: Filters): Attempt[] {
   const attempts: Attempt[] = [
     { step: 'strict', radius_km: DEFAULT_RADIUS_KM, max_price: filters.max_price },
