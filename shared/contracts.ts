@@ -68,6 +68,7 @@ export const parsedQuerySchema = z.object({
   size: sizeSchema.nullable(),
   max_price: z.number().int().positive().nullable(),
   gender: z.enum(['women', 'men']).nullable(),
+  categories: z.array(categorySchema),
   style_query: z.string().trim().min(1),
 })
 export type ParsedQuery = z.infer<typeof parsedQuerySchema>

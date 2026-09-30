@@ -41,7 +41,7 @@ describe('createListingSchema', () => {
 
 describe('parsedQuerySchema', () => {
   it('accepts the PRD §7.3 parser example', () => {
-    const parsed = parsedQuerySchema.parse({ occasion: 'sangeet_mehendi', size: 'M', max_price: 800, gender: null, style_query: 'festive colourful outfit for a sangeet, comfortable to dance in' })
+    const parsed = parsedQuerySchema.parse({ occasion: 'sangeet_mehendi', size: 'M', max_price: 800, gender: null, categories: [], style_query: 'festive colourful outfit for a sangeet, comfortable to dance in' })
     expect(parsed.max_price).toBe(800)
   })
 })

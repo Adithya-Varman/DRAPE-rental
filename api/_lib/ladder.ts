@@ -6,6 +6,7 @@ export type Filters = {
   size: ParsedQuery['size']
   max_price: number | null
   gender: ParsedQuery['gender']
+  categories: ParsedQuery['categories']
 }
 
 export type Attempt = {
@@ -33,6 +34,7 @@ export function mergeFilters(parsed: ParsedQuery, request: Pick<SearchRequest, '
     size: request.size ?? parsed.size,
     max_price: request.max_price ?? parsed.max_price,
     gender: parsed.gender,
+    categories: parsed.categories,
   }
 }
 
