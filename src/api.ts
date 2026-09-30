@@ -37,12 +37,13 @@ const post = <T>(path: string, data: unknown) =>
 
 export const api = {
   areas: () => request<{ areas: Area[] }>('/api/areas').then((r) => r.areas),
-  listings: (params: { occasion?: string; limit?: number } = {}) => {
+  // With an area the server returns nearest first (with distance_km) and a total for paging.
+  listings: (params: { area?: string; occasion?: string; limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams()
-    if (params.occasion) query.set('occasion', params.occasion)
-    if (params.limit) query.set('limit', String(params.limit))
-    return request<{ listings: Listing[] }>(`/api/listings?${query}`).then((r) => r.listings)
+    for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== '') query.set(key, String(value))
+    return request<{ listings: Listing[]; total: number }>(`/api/listings?${query}`)
   },
+  complete: (id: string) => request<{ slot: string; pairs_with: string[]; results: (Listing & { slot: string; similarity: number })[] }>(`/api/listings/${id}/complete`),
   listing: (id: string) => request<{ listing: Listing }>(`/api/listings/${id}`).then((r) => r.listing),
   contact: (id: string) => request<{ owner_name: string; owner_contact: string }>(`/api/listings/${id}/contact`),
   // Results first (fast), reasons second — see POST /api/search/reasons.

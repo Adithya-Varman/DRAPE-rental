@@ -34,6 +34,7 @@ async function loadImage(image) {
   return new Blob([await readFile(resolve(dir, image))])
 }
 
+const adminHeader = process.env.SUPABASE_SERVICE_ROLE_KEY ? { 'x-admin-key': process.env.SUPABASE_SERVICE_ROLE_KEY } : {}
 let ok = 0
 for (const [i, item] of manifest.entries()) {
   const label = `[${i + 1}/${manifest.length}] ${item.image.split('/').pop()}`
@@ -43,7 +44,7 @@ for (const [i, item] of manifest.entries()) {
     const started = Date.now()
     let analyzed
     for (let tries = 0; ; tries++) {
-      analyzed = await fetch(`${base}/api/listings/analyze`, { method: 'POST', body: form }).then((r) => r.json())
+      analyzed = await fetch(`${base}/api/listings/analyze`, { method: 'POST', body: form, headers: adminHeader }).then((r) => r.json())
       if (analyzed.error !== 'rate_limited' || tries >= 5) break
       console.log(`${label}  rate limited — waiting ${analyzed.retry_after}s`)
       await new Promise((r) => setTimeout(r, (analyzed.retry_after + 1) * 1000))

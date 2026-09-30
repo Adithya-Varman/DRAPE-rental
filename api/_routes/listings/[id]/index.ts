@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { HttpError, json, route } from '../../../_lib/http.js'
+import { HttpError, json, publicCache, route } from '../../../_lib/http.js'
 import { db, PUBLIC_LISTING_COLUMNS } from '../../../_lib/supabase.js'
 
 export function listingIdFrom(request: Request): string {
@@ -15,5 +15,5 @@ export const GET = route(async (request) => {
   const { data, error } = await db().from('listings').select(PUBLIC_LISTING_COLUMNS).eq('id', id).maybeSingle()
   if (error) throw error
   if (!data) throw new HttpError(404, 'Listing not found')
-  return json({ listing: data })
+  return publicCache(json({ listing: data }), 60)
 })

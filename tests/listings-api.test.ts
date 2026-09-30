@@ -23,13 +23,21 @@ describe('GET /api/listings', () => {
     fake.result = { data: [{ id: ID }], error: null }
     const res = await listListings(new Request('http://x/api/listings?occasion=wedding&limit=4'))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ listings: [{ id: ID }] })
+    expect(await res.json()).toEqual({ listings: [{ id: ID }], total: 1 })
     expect(fake.calls).toContainEqual(['contains', 'occasions', ['wedding']])
-    expect(fake.calls).toContainEqual(['limit', 4])
+    expect(fake.calls).toContainEqual(['range', 0, 3])
+  })
+  it('is cacheable at the CDN for a short while', async () => {
+    const res = await listListings(new Request('http://x/api/listings'))
+    expect(res.headers.get('cache-control')).toMatch(/s-maxage=30/)
+  })
+  it('pages with offset', async () => {
+    await listListings(new Request('http://x/api/listings?limit=24&offset=24'))
+    expect(fake.calls).toContainEqual(['range', 24, 47])
   })
   it('defaults limit to 8 with no occasion filter', async () => {
     await listListings(new Request('http://x/api/listings'))
-    expect(fake.calls).toContainEqual(['limit', 8])
+    expect(fake.calls).toContainEqual(['range', 0, 7])
     expect(fake.calls.some(([m]) => m === 'contains')).toBe(false)
   })
   it('rejects occasions outside the vocabulary', async () => {

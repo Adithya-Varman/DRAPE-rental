@@ -6,8 +6,9 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 // gemini-3.5-flash-lite with minimal thinking measured ~3 s for vision tagging; the full flash model had
 // multi-second variance (one 82 s outlier), too risky for a live demo. Override per deployment if needed.
-// Vision and text use DIFFERENT models on purpose: the free tier caps each model at 15 requests/minute, and a search
-// makes two text calls, so sharing one model would let a few searches block uploads (and vice versa).
+// Search-time text calls normally go to OpenAI (see text-llm.ts). This Gemini text model is only the fallback when OpenAI
+// is missing or failing — and by default it shares the vision model's free-tier quota (15 requests/minute per model),
+// because gemini-3.1-flash-lite, the separate-quota option we tried, timed out. Set GEMINI_TEXT_MODEL to change it.
 export const VISION_MODEL = () => process.env.GEMINI_VISION_MODEL || 'gemini-3.5-flash-lite'
 export const TEXT_MODEL = () => process.env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash-lite'
 // Locked in hour 0 (PRD §2). Changing this model means re-embedding every listing.

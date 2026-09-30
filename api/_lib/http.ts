@@ -12,8 +12,18 @@ export function json(data: unknown, status = 200): Response {
   })
 }
 
+// JSON bodies only: a form post from another site can't produce this content type without a CORS preflight.
 export async function readJson(request: Request): Promise<unknown> {
+  if (!(request.headers.get('content-type') ?? '').toLowerCase().includes('application/json')) {
+    throw new HttpError(415, 'Send the request body as application/json')
+  }
   try { return await request.json() } catch { throw new HttpError(400, 'Request body must be valid JSON') }
+}
+
+// Public, non-personal reads can be served from Vercel's CDN for a short while (and stale while it refreshes).
+export function publicCache(response: Response, seconds: number): Response {
+  response.headers.set('cache-control', `public, max-age=0, s-maxage=${seconds}, stale-while-revalidate=${seconds * 10}`)
+  return response
 }
 
 // Wrap a handler so thrown HttpErrors / ZodErrors become clean JSON responses instead of 500 stack traces.

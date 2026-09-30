@@ -50,7 +50,7 @@ const { POST: createListing } = await import('../api/_routes/listings/index.js')
 const LISTING = '6f1c2a4e-9b1d-4c3e-8f7a-1234567890ab'
 const start = addDays(todayInIndia(), 5)
 const body = { listing_id: LISTING, start_date: start, end_date: addDays(start, 2), borrower_contact: 'asha@drape.demo', payment_method: 'upi' }
-const post = (fn: (r: Request) => Promise<Response>, data: unknown) => fn(new Request('http://x/', { method: 'POST', body: JSON.stringify(data) }))
+const post = (fn: (r: Request) => Promise<Response>, data: unknown) => fn(new Request('http://x/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }))
 
 beforeEach(() => { fake = fakeDb(); listingRow = { id: 'l1', price_per_day: 400, owner_id: 'owner-1' }; currentUser = { id: 'user-1', email: 'asha@drape.demo', name: 'Asha' } })
 
