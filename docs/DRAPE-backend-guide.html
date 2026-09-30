@@ -1,0 +1,1785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRAPE Backend Guide</title>
+<style>
+  :root {
+    --ink: #1c1b1f;
+    --muted: #5d5a63;
+    --faint: #8b8791;
+    --rule: #dcd8d2;
+    --paper: #ffffff;
+    --tint: #f6f3ee;
+    --accent: #8a2b3d;
+    --accent-soft: #f5e7ea;
+    --teal: #1f6560;
+    --teal-soft: #e3f0ee;
+    --gold: #9a6b12;
+    --gold-soft: #fbf1dc;
+    --blue: #2f4f86;
+    --blue-soft: #e8edf7;
+    --code-bg: #f4f2ef;
+  }
+  @page {
+    size: A4;
+    margin: 18mm 18mm 20mm 18mm;
+    @bottom-center { content: counter(page); font: 8.5pt "Avenir Next", "Helvetica Neue", sans-serif; color: #8b8791; }
+    @bottom-left { content: "DRAPE backend guide"; font: 8pt "Avenir Next", "Helvetica Neue", sans-serif; color: #b0acb4; }
+  }
+  @page cover { margin: 0; @bottom-center { content: none; } @bottom-left { content: none; } }
+  html { background: var(--paper); }
+  body {
+    margin: 0; color: var(--ink); background: var(--paper);
+    font-family: Charter, "Iowan Old Style", Georgia, serif;
+    font-size: 9.7pt; line-height: 1.46;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1, h2, h3, h4, .sans { font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  h2 {
+    font-size: 19pt; font-weight: 600; letter-spacing: -0.01em; color: var(--ink);
+    margin: 24pt 0 10pt; padding-top: 10pt; border-top: 1.2pt solid var(--ink); break-after: avoid;
+  }
+  h2 .num { color: var(--accent); margin-right: 8pt; }
+  h3 { font-size: 12.2pt; font-weight: 600; margin: 16pt 0 5pt; break-after: avoid; }
+  h3 .num { color: var(--faint); font-weight: 500; margin-right: 6pt; }
+  h4 { font-size: 10.4pt; font-weight: 600; margin: 12pt 0 3pt; break-after: avoid; color: var(--muted); }
+  p { margin: 0 0 7pt; orphans: 3; widows: 3; }
+  ul, ol { margin: 0 0 8pt; padding-left: 16pt; }
+  li { margin-bottom: 2.5pt; }
+  a { color: var(--blue); text-decoration: none; }
+  code, pre, .mono { font-family: Menlo, "SF Mono", Monaco, Consolas, monospace; }
+  code { font-size: 8.4pt; background: var(--code-bg); padding: 0.5pt 3pt; border-radius: 2.5pt; color: #3a2a30; }
+  pre {
+    font-size: 7.6pt; line-height: 1.42; background: var(--code-bg); border-left: 2.5pt solid var(--accent);
+    padding: 7pt 9pt; margin: 4pt 0 10pt; white-space: pre-wrap; word-break: break-word; break-inside: avoid;
+    border-radius: 0 3pt 3pt 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+  pre .c { color: #857f76; }
+  pre .k { color: var(--accent); }
+  pre .s { color: var(--teal); }
+  .lead { font-size: 10.6pt; color: #333038; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 10pt; font-size: 8.5pt; line-height: 1.35; break-inside: auto; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  th {
+    text-align: left; font-family: "Avenir Next", "Helvetica Neue", sans-serif; font-weight: 600; font-size: 8.3pt;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);
+    border-bottom: 1.2pt solid var(--ink); padding: 4pt 6pt 3pt;
+  }
+  td { border-bottom: 0.6pt solid var(--rule); padding: 3.2pt 6pt; vertical-align: top; }
+  td code { font-size: 7.9pt; }
+  figure { margin: 8pt 0 13pt; break-inside: avoid; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-family: "Avenir Next", "Helvetica Neue", sans-serif; font-size: 8.4pt; color: var(--muted); margin-top: 5pt; }
+  figcaption b { color: var(--ink); }
+  .callout { border: 0.8pt solid var(--rule); background: var(--tint); border-radius: 4pt; padding: 7pt 10pt; margin: 6pt 0 11pt; break-inside: avoid; }
+  .callout.accent { background: var(--accent-soft); border-color: #e3c4cb; }
+  .callout.teal { background: var(--teal-soft); border-color: #bfdcd8; }
+  .callout.gold { background: var(--gold-soft); border-color: #ecd6a6; }
+  .callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+  .callout .label { font-family: "Avenir Next", sans-serif; font-weight: 600; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); display: block; margin-bottom: 2pt; }
+  .callout.teal .label { color: var(--teal); }
+  .callout.gold .label { color: var(--gold); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .keep { break-inside: avoid; }
+  .tag { font-family: "Avenir Next", sans-serif; font-size: 7.4pt; font-weight: 600; padding: 0.5pt 4pt; border-radius: 6pt; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .tag.t { background: var(--teal-soft); color: var(--teal); }
+  .tag.g { background: var(--gold-soft); color: var(--gold); }
+  .tag.b { background: var(--blue-soft); color: var(--blue); }
+
+  /* Cover */
+  .cover { page: cover; height: 297mm; position: relative; overflow: hidden; background: #1c1b1f; color: #f4efe8; break-after: page; }
+  .cover .band { position: absolute; left: 0; right: 0; top: 0; height: 9mm; background: var(--accent); }
+  .cover .inner { position: absolute; left: 22mm; right: 22mm; top: 62mm; }
+  .cover .eyebrow { font-family: "Avenir Next", sans-serif; letter-spacing: 0.22em; text-transform: uppercase; font-size: 9pt; color: #d9a9b4; }
+  .cover h1 { font-size: 52pt; line-height: 1; margin: 10pt 0 8pt; font-weight: 700; letter-spacing: -0.02em; }
+  .cover .sub { font-size: 17pt; font-family: "Avenir Next", sans-serif; font-weight: 400; color: #e7dfd5; margin-bottom: 26pt; }
+  .cover .desc { font-size: 11pt; color: #c9c1b8; max-width: 128mm; line-height: 1.55; }
+  .cover .meta { position: absolute; left: 22mm; right: 22mm; bottom: 24mm; font-family: "Avenir Next", sans-serif; font-size: 8.8pt; color: #a79f96; border-top: 0.6pt solid #4a464f; padding-top: 8pt; display: flex; justify-content: space-between; }
+  .cover svg { position: absolute; right: -10mm; top: 150mm; width: 120mm; opacity: 0.9; }
+
+  /* TOC */
+  .toc { break-after: page; }
+  .toc h2 { border-top: none; margin-top: 0; }
+  .newpage h2 { break-before: page; margin-top: 0; }
+  .toc ol { list-style: none; padding: 0; margin: 0; }
+  .toc li { display: flex; align-items: baseline; font-family: "Avenir Next", sans-serif; font-size: 10.5pt; margin: 0; padding: 4.2pt 0; border-bottom: 0.5pt solid #eee9e3; }
+  .toc li .n { width: 22pt; color: var(--accent); font-weight: 600; }
+  .toc li .t { flex: 1; }
+  .toc li .t small { display: block; color: var(--faint); font-size: 8.3pt; margin-top: 1pt; }
+  .toc li .p { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 18pt; text-align: right; }
+  .howto { margin-top: 16pt; font-size: 9.2pt; color: var(--muted); }
+
+  /* SVG shared styles */
+  svg text { font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  svg .mono { font-family: Menlo, Monaco, monospace; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<section class="cover">
+  <div class="band"></div>
+  <div class="inner">
+    <div class="eyebrow">Engineering handbook</div>
+    <h1>DRAPE</h1>
+    <div class="sub">The backend, from A to Z</div>
+    <p class="desc">How a photo becomes a searchable listing, how a sentence becomes a ranked list of outfits nearby,
+      how bookings stay race-proof, and how accounts, sessions and notifications work. Written for developers who are
+      new to the codebase, grounded in the real files, endpoints and SQL.</p>
+  </div>
+  <svg viewBox="0 0 300 300" aria-hidden="true">
+    <g fill="none" stroke="#8a2b3d" stroke-width="1.2">
+      <circle cx="150" cy="150" r="140" opacity="0.35"/>
+      <circle cx="150" cy="150" r="104" opacity="0.5"/>
+      <circle cx="150" cy="150" r="64" opacity="0.7"/>
+      <circle cx="150" cy="150" r="26" opacity="0.9"/>
+    </g>
+    <g fill="#d9a9b4"><circle cx="150" cy="150" r="5"/><circle cx="196" cy="118" r="3.5"/><circle cx="92" cy="186" r="3.5"/><circle cx="224" cy="214" r="3"/><circle cx="70" cy="96" r="3"/></g>
+    <text x="120" y="176" fill="#e7dfd5" font-size="9">Adyar</text><text x="120" y="188" fill="#a79f96" font-size="8">10 km → 25 km → anywhere</text>
+  </svg>
+  <div class="meta"><span>Repo: DRAPE-rental · Vite + React · Vercel Functions · Supabase Postgres</span><span>Revision: 30 Sep 2026</span></div>
+</section>
+
+<!-- ============================ TOC ============================ -->
+<section class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><span class="n">1</span><span class="t">What DRAPE is<small>The two core flows, bookings and owner notifications</small></span><span class="p" data-sec="s1">3</span></li>
+    <li><span class="n">2</span><span class="t">Architecture at a glance<small>Browser, one Vercel Function, Supabase, Gemini, OpenAI</small></span><span class="p" data-sec="s2">4</span></li>
+    <li><span class="n">3</span><span class="t">The life of a request<small>Rewrite, router, handler, error wrapper, local dev parity</small></span><span class="p" data-sec="s3">5</span></li>
+    <li><span class="n">4</span><span class="t">Data model<small>Tables, indexes, RLS stance, triggers, the no-overlap constraint</small></span><span class="p" data-sec="s4">7</span></li>
+    <li><span class="n">5</span><span class="t">Upload pipeline: photo to listing<small>Magic bytes, storage, vision, zod + retry, fallbacks, embedding</small></span><span class="p" data-sec="s5">9</span></li>
+    <li><span class="n">6</span><span class="t">Search pipeline: sentence to ranked matches<small>Parser, chips, embedding, match_listings, fallback ladder, reasons</small></span><span class="p" data-sec="s6">11</span></li>
+    <li><span class="n">7</span><span class="t">Outfits: “Complete the look”<small>Vocabulary, slots, the complete_the_look RPC</small></span><span class="p" data-sec="s7">14</span></li>
+    <li><span class="n">8</span><span class="t">Bookings and payments<small>Quote maths, India-time date rules, mock payment, 409 on overlap</small></span><span class="p" data-sec="s8">15</span></li>
+    <li><span class="n">9</span><span class="t">Accounts, sessions and Google sign-in<small>Own users table, scrypt, session cookies, lockout, CSRF, Google via PKCE</small></span><span class="p" data-sec="s9">17</span></li>
+    <li><span class="n">10</span><span class="t">Notifications<small>Trigger to bell, polling</small></span><span class="p" data-sec="s10">21</span></li>
+    <li><span class="n">11</span><span class="t">AI providers and rate limits<small>Models, timeouts, fallbacks, 429 handling</small></span><span class="p" data-sec="s11">21</span></li>
+    <li><span class="n">12</span><span class="t">Security summary<small>Every defence in one place</small></span><span class="p" data-sec="s12">22</span></li>
+    <li><span class="n">13</span><span class="t">Operations<small>Env vars, scripts, tests, deploy, known limitations</small></span><span class="p" data-sec="s13">23</span></li>
+    <li><span class="n">14</span><span class="t">Reference<small>Endpoint table and glossary</small></span><span class="p" data-sec="s14">26</span></li>
+  </ol>
+  <div class="howto">
+    <p><b>How to read this.</b> Sections 1–3 give you the mental model in ten minutes. Sections 4–10 each follow one
+      feature end to end, from HTTP request to SQL row. Section 14 is the lookup table you will come back to.</p>
+    <p><b>Conventions.</b> Paths like <code>api/_lib/search.ts</code> are relative to the repo root. Endpoints are written
+      <code>METHOD /api/path</code>. <span class="tag">auth</span> marks endpoints that need a signed-in session;
+      <span class="tag g">admin</span> marks endpoints that need the server key. Secrets are named, never shown.</p>
+    <p><b>A note on accounts.</b> Authentication is being rewritten from Supabase Auth to DRAPE’s own users and
+      sessions tables. Section 9 and every “signed in” reference in this guide describe the <i>new</i> design.</p>
+  </div>
+</section>
+
+<!-- ============================ 1 ============================ -->
+<section id="s1" class="newpage">
+<h2><span class="num">1</span>What DRAPE is</h2>
+<p class="lead">DRAPE (“Wear once, don’t buy”) is a hyperlocal, peer-to-peer clothing rental network for Chennai.
+  People who own an outfit they wore once list it; people who need an outfit for one evening describe what they need
+  in plain language and get ranked matches a few kilometres away.</p>
+
+<p>The backend exists to make two flows feel effortless, and to keep them honest:</p>
+
+<div class="two">
+  <div class="callout teal">
+    <span class="label">Flow A · List a piece</span>
+    <p>Snap a photo. The server stores it and asks a vision model to draft the tags (title, category, occasions, style,
+      colours, formality, description). The lister edits the draft, sets size, price per day and pickup area, and
+      publishes. The server embeds the listing so it is searchable immediately.</p>
+  </div>
+  <div class="callout accent">
+    <span class="label">Flow B · Describe what you need</span>
+    <p>“Something for my friend’s sangeet, M, under ₹800.” A text model turns that into filters plus a style
+      description; the description is embedded; Postgres filters by size, budget, gender and distance and ranks by
+      vector similarity. If nothing good is close, a fallback ladder relaxes the search and says exactly what changed.</p>
+  </div>
+</div>
+
+<p>Around these flows sit three supporting features:</p>
+<ul>
+  <li><b>Bookings.</b> A borrower picks dates (up to 14 days, up to 90 days ahead) and pays a 20% advance (minimum ₹50).
+    The server recomputes the price; a Postgres exclusion constraint makes double-booking impossible.</li>
+  <li><b>Owner notifications.</b> When a booking is inserted, a database trigger writes a notification for the
+    listing’s owner in the same transaction. The owner’s header bell shows it with the borrower’s contact.</li>
+  <li><b>Complete the look.</b> For any listing, the API suggests complementary pieces (bottoms for a top, layers for a
+    dress) that share an occasion and a style.</li>
+</ul>
+
+<h3><span class="num">1.1</span>Design principles you will see everywhere</h3>
+<table>
+  <thead><tr><th style="width:30%">Principle</th><th>What it means in code</th></tr></thead>
+  <tbody>
+    <tr><td><b>Hard filters are SQL, fuzzy intent is vectors</b></td><td>Size, budget, distance and gender are
+      <code>WHERE</code> clauses in <code>match_listings</code>. Occasion, vibe and style only influence cosine ranking. The
+      LLM never decides whether an item fits a budget.</td></tr>
+    <tr><td><b>The server never trusts the client</b></td><td>Embeddings, locations, prices, advances and the current user
+      are all computed server-side. Client-sent <code>embedding</code> or <code>location</code> fields are ignored.</td></tr>
+    <tr><td><b>AI output is validated, and AI failure is survivable</b></td><td>Every model response goes through a zod
+      schema with one retry. If tagging fails, the lister tags by hand. If the parser fails, search falls back to the raw
+      text. If reasons fail, results still render.</td></tr>
+    <tr><td><b>All data access goes through <code>/api</code></b></td><td>Row-level security is on for every table with no
+      policies, so the public Supabase endpoints return nothing. Only the server, holding the service-role key, reads
+      and writes.</td></tr>
+    <tr><td><b>One shared contract</b></td><td><code>shared/contracts.ts</code>, <code>shared/vocab.ts</code> and
+      <code>shared/booking.ts</code> are imported by both the React app and the API, so shapes cannot drift.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">1.2</span>Repository map (backend-relevant parts)</h3>
+<pre><code>api/
+  router.ts              <span class="c"># the ONLY Vercel Function: route table + dispatch</span>
+  _routes/               <span class="c"># one module per endpoint (underscore = not deployed separately)</span>
+    listings/ index.ts analyze.ts [id]/{index,contact,availability,complete}.ts
+    search/   index.ts reasons.ts
+    bookings/ index.ts mine.ts
+    notifications/ index.ts read.ts
+    auth/ signup.ts login.ts logout.ts providers.ts google/{index,callback}.ts
+    me/index.ts  areas.ts  health.ts  admin/retag.ts
+  _lib/                  <span class="c"># shared server code</span>
+    http.ts supabase.ts auth.ts sessions.ts passwords.ts google.ts admin.ts
+    gemini.ts text-llm.ts vision.ts images.ts
+    search.ts search-ai.ts ladder.ts bookings.ts payments.ts
+shared/                  <span class="c"># imported by browser AND server</span>
+  vocab.ts contracts.ts booking.ts booking-schema.ts
+supabase/migrations/     <span class="c"># schema, RPCs, triggers, constraints (apply in filename order)</span>
+dev/api-plugin.ts        <span class="c"># serves /api during `npm run dev` via the same router</span>
+scripts/                 <span class="c"># seed-listings, retag-listings, verify-prd, create-demo-owner</span>
+tests/                   <span class="c"># vitest suites (routing, pipelines, ladder, bookings, contracts)</span>
+vercel.json              <span class="c"># region bom1 + the /api rewrite</span></code></pre>
+</section>
+
+<!-- ============================ 2 ============================ -->
+<section id="s2">
+<h2><span class="num">2</span>Architecture at a glance</h2>
+<p>There are only four moving parts: a static single-page app, one serverless function, one Postgres database with
+  file storage, and two AI providers. Everything that needs a secret runs inside the function.</p>
+
+<figure>
+<svg viewBox="0 0 780 482" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker>
+    <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a2b3d"/></marker>
+  </defs>
+  <!-- Browser -->
+  <rect x="14" y="170" width="150" height="120" rx="10" fill="#f6f3ee" stroke="#1c1b1f" stroke-width="1.3"/>
+  <text x="89" y="196" text-anchor="middle" font-size="14" font-weight="600" fill="#1c1b1f">Browser</text>
+  <text x="89" y="215" text-anchor="middle" font-size="10.5" fill="#5d5a63">Vite + React SPA</text>
+  <text x="89" y="238" text-anchor="middle" font-size="9.5" fill="#5d5a63">fetch('/api/…')</text>
+  <text x="89" y="253" text-anchor="middle" font-size="9.5" fill="#5d5a63">JSON bodies</text>
+  <text x="89" y="273" text-anchor="middle" font-size="9" fill="#8a2b3d" class="mono">cookie: drape_session</text>
+
+  <!-- Vercel region -->
+  <rect x="200" y="20" width="270" height="430" rx="12" fill="none" stroke="#8b8791" stroke-dasharray="5 4"/>
+  <text x="214" y="42" font-size="11" font-weight="600" fill="#5d5a63">Vercel · region bom1 (Mumbai)</text>
+  <rect x="222" y="60" width="226" height="62" rx="8" fill="#ffffff" stroke="#8b8791"/>
+  <text x="335" y="85" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1c1b1f">Static SPA (dist/)</text>
+  <text x="335" y="103" text-anchor="middle" font-size="9.5" fill="#5d5a63">every non-/api path → /index.html</text>
+
+  <rect x="222" y="150" width="226" height="282" rx="8" fill="#f5e7ea" stroke="#8a2b3d" stroke-width="1.4"/>
+  <text x="335" y="174" text-anchor="middle" font-size="12" font-weight="600" fill="#8a2b3d">api/router.ts</text>
+  <text x="335" y="190" text-anchor="middle" font-size="9.5" fill="#5d5a63">one Vercel Function, one route table</text>
+  <g font-size="9.6" fill="#1c1b1f">
+    <rect x="238" y="202" width="194" height="22" rx="4" fill="#fff" stroke="#e3c4cb"/><text x="248" y="217">listings · analyze · contact · complete</text>
+    <rect x="238" y="229" width="194" height="22" rx="4" fill="#fff" stroke="#e3c4cb"/><text x="248" y="244">search · search/reasons</text>
+    <rect x="238" y="256" width="194" height="22" rx="4" fill="#fff" stroke="#e3c4cb"/><text x="248" y="271">bookings · availability · mine</text>
+    <rect x="238" y="283" width="194" height="22" rx="4" fill="#fff" stroke="#e3c4cb"/><text x="248" y="298">auth/* · me · notifications</text>
+    <rect x="238" y="310" width="194" height="22" rx="4" fill="#fff" stroke="#e3c4cb"/><text x="248" y="325">areas · health · admin/retag</text>
+  </g>
+  <text x="335" y="355" text-anchor="middle" font-size="9.5" fill="#5d5a63">_lib: http · auth · gemini · text-llm</text>
+  <text x="335" y="370" text-anchor="middle" font-size="9.5" fill="#5d5a63">vision · images · search · ladder</text>
+  <text x="335" y="385" text-anchor="middle" font-size="9.5" fill="#5d5a63">bookings · payments · supabase · admin</text>
+  <text x="335" y="412" text-anchor="middle" font-size="9" fill="#8a2b3d">secrets live only here (process.env)</text>
+
+  <!-- Supabase -->
+  <rect x="508" y="20" width="258" height="196" rx="12" fill="#e3f0ee" stroke="#1f6560" stroke-width="1.3"/>
+  <text x="522" y="42" font-size="11.5" font-weight="600" fill="#1f6560">Supabase (Mumbai)</text>
+  <rect x="522" y="54" width="230" height="98" rx="7" fill="#fff" stroke="#9cc9c3"/>
+  <text x="534" y="74" font-size="11" font-weight="600" fill="#1c1b1f">Postgres</text>
+  <text x="534" y="92" font-size="9.4" fill="#5d5a63">pgvector · HNSW cosine index (768-d)</text>
+  <text x="534" y="107" font-size="9.4" fill="#5d5a63">PostGIS · geography(point) + GiST</text>
+  <text x="534" y="122" font-size="9.4" fill="#5d5a63">btree_gist · exclusion constraint</text>
+  <text x="534" y="137" font-size="9.4" fill="#5d5a63">RPCs, triggers · RLS on, no policies</text>
+  <rect x="522" y="160" width="230" height="44" rx="7" fill="#fff" stroke="#9cc9c3"/>
+  <text x="534" y="178" font-size="11" font-weight="600" fill="#1c1b1f">Storage bucket “listings”</text>
+  <text x="534" y="194" font-size="9.4" fill="#5d5a63">public read · uploads via service role</text>
+
+  <!-- Gemini -->
+  <rect x="508" y="240" width="258" height="70" rx="10" fill="#e8edf7" stroke="#2f4f86" stroke-width="1.2"/>
+  <text x="522" y="261" font-size="11.5" font-weight="600" fill="#2f4f86">Google Gemini API</text>
+  <text x="522" y="278" font-size="9.4" fill="#1c1b1f">gemini-3.5-flash-lite · photo → tags</text>
+  <text x="522" y="293" font-size="9.4" fill="#1c1b1f">gemini-embedding-001 · 768-d vectors</text>
+  <!-- OpenAI -->
+  <rect x="508" y="322" width="258" height="56" rx="10" fill="#fbf1dc" stroke="#9a6b12" stroke-width="1.2"/>
+  <text x="522" y="343" font-size="11.5" font-weight="600" fill="#9a6b12">OpenAI API</text>
+  <text x="522" y="361" font-size="9.4" fill="#1c1b1f">gpt-5.4-mini · query parser + “why it fits”</text>
+  <!-- Google via Supabase Auth -->
+  <rect x="508" y="390" width="258" height="56" rx="10" fill="#fff" stroke="#8b8791"/>
+  <text x="522" y="411" font-size="11.5" font-weight="600" fill="#1c1b1f">Google sign-in (optional)</text>
+  <text x="522" y="429" font-size="9.4" fill="#5d5a63">brokered by Supabase Auth · PKCE exchange</text>
+
+  <!-- arrows -->
+  <path d="M164 205 C185 150, 190 100, 220 92" fill="none" stroke="#5d5a63" stroke-width="1.2" marker-end="url(#ar)"/>
+  <text x="168" y="130" font-size="9" fill="#5d5a63">HTML/JS</text>
+  <path d="M164 245 L220 245" fill="none" stroke="#8a2b3d" stroke-width="1.8" marker-end="url(#arA)"/>
+  <text x="168" y="238" font-size="9" fill="#8a2b3d">/api/*</text>
+  <path d="M448 200 L520 110" fill="none" stroke="#1f6560" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="458" y="138" font-size="8.8" fill="#1f6560">supabase-js</text>
+  <text x="458" y="149" font-size="8.8" fill="#1f6560">service role</text>
+  <path d="M448 230 L520 185" fill="none" stroke="#1f6560" stroke-width="1.3" marker-end="url(#ar)"/>
+  <path d="M448 275 L506 275" fill="none" stroke="#2f4f86" stroke-width="1.3" marker-end="url(#ar)"/>
+  <path d="M448 340 L506 348" fill="none" stroke="#9a6b12" stroke-width="1.3" marker-end="url(#ar)"/>
+  <path d="M448 405 L506 415" fill="none" stroke="#8b8791" stroke-width="1.2" marker-end="url(#ar)"/>
+  <path d="M89 290 L89 462 L489 462 L489 196 L520 196" fill="none" stroke="#1f6560" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+  <text x="96" y="476" font-size="8.8" fill="#1f6560">listing photos: GET public Storage URL</text>
+</svg>
+<figcaption><b>Figure 1.</b> System architecture. The browser only ever talks to Vercel (and fetches listing photos by
+  their public Storage URL). The single function <code>api/router.ts</code> holds every secret and is the only client of
+  Postgres, Storage, Gemini, OpenAI and the Supabase Auth token endpoint used for Google sign-in. The project and the database both live in Mumbai
+  (<code>"regions": ["bom1"]</code> in <code>vercel.json</code>) so each query is a short hop.</figcaption>
+</figure>
+
+<h3><span class="num">2.1</span>Who does what</h3>
+<table>
+  <thead><tr><th style="width:22%">Component</th><th style="width:30%">Technology</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend</td><td>Vite + React 19 (<code>src/</code>)</td><td>UI only. Calls <code>/api</code> with JSON; holds no secrets.
+      Sessions travel in an httpOnly cookie that JavaScript cannot read.</td></tr>
+    <tr><td>API</td><td>Vercel Function, Web <code>Request → Response</code> handlers, TypeScript, zod</td><td>Validation,
+      business rules, orchestration of AI calls, all database access.</td></tr>
+    <tr><td>Database</td><td>Supabase Postgres + <code>vector</code>, <code>postgis</code>, <code>btree_gist</code></td><td>Listings,
+      areas, bookings, users, sessions, notifications; vector + geo search RPCs; triggers and constraints.</td></tr>
+    <tr><td>File storage</td><td>Supabase Storage bucket <code>listings</code></td><td>Listing photos (public read, 8 MB limit,
+      JPEG/PNG/WebP/HEIC/HEIF only).</td></tr>
+    <tr><td>Vision + embeddings</td><td>Gemini REST (<code>api/_lib/gemini.ts</code>, no SDK)</td><td>Photo tagging; 768-d
+      embeddings for listings and queries.</td></tr>
+    <tr><td>Search text</td><td>OpenAI Chat Completions (<code>api/_lib/text-llm.ts</code>)</td><td>Query parsing and
+      “why it fits” reasons, with Gemini as automatic fallback.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout gold">
+  <span class="label">Why one function?</span>
+  <p>Vercel’s Hobby plan allows at most 12 serverless functions per deployment, and DRAPE has more than 20 endpoints.
+    So every route lives in <code>api/_routes/</code> (the leading underscore tells Vercel not to deploy those files as
+    functions) and a single <code>api/router.ts</code> dispatches to them. A test in <code>tests/api-plugin.test.ts</code>
+    fails if anyone adds a second function or forgets to register a route.</p>
+</div>
+</section>
+
+<!-- ============================ 3 ============================ -->
+<section id="s3">
+<h2><span class="num">3</span>The life of a request</h2>
+<p>Every API call follows the same path. Once you know it, any endpoint is easy to trace.</p>
+
+<figure>
+<svg viewBox="0 0 780 330" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker>
+  </defs>
+  <text x="10" y="18" font-size="10.5" font-weight="600" fill="#8a2b3d">PRODUCTION (Vercel)</text>
+  <g font-size="9.4">
+    <rect x="10" y="30" width="140" height="84" rx="8" fill="#f6f3ee" stroke="#1c1b1f"/>
+    <text x="80" y="50" text-anchor="middle" font-weight="600" font-size="10.5">① Browser</text>
+    <text x="80" y="68" text-anchor="middle" class="mono" font-size="8.4">GET /api/listings/</text>
+    <text x="80" y="80" text-anchor="middle" class="mono" font-size="8.4">7f3c…/contact</text>
+    <text x="80" y="98" text-anchor="middle" fill="#5d5a63">+ Cookie, Origin</text>
+
+    <rect x="168" y="30" width="140" height="84" rx="8" fill="#fff" stroke="#8b8791"/>
+    <text x="238" y="50" text-anchor="middle" font-weight="600" font-size="10.5">② vercel.json rewrite</text>
+    <text x="238" y="68" text-anchor="middle" class="mono" font-size="8.2">/api/router?__path=</text>
+    <text x="238" y="80" text-anchor="middle" class="mono" font-size="8.2">listings/7f3c…/contact</text>
+    <text x="238" y="98" text-anchor="middle" fill="#5d5a63">region bom1</text>
+
+    <rect x="326" y="30" width="140" height="84" rx="8" fill="#f5e7ea" stroke="#8a2b3d"/>
+    <text x="396" y="50" text-anchor="middle" font-weight="600" font-size="10.5">③ dispatch()</text>
+    <text x="396" y="68" text-anchor="middle" fill="#1c1b1f">originalRequest():</text>
+    <text x="396" y="81" text-anchor="middle" fill="#1c1b1f">rebuild path, keep body</text>
+    <text x="396" y="94" text-anchor="middle" fill="#1c1b1f">crossSite(): Origin check</text>
+
+    <rect x="484" y="30" width="140" height="84" rx="8" fill="#f5e7ea" stroke="#8a2b3d"/>
+    <text x="554" y="50" text-anchor="middle" font-weight="600" font-size="10.5">④ match(pathname)</text>
+    <text x="554" y="68" text-anchor="middle">regex per ROUTES entry</text>
+    <text x="554" y="81" text-anchor="middle" class="mono" font-size="8.2">:id → [^/]+</text>
+    <text x="554" y="94" text-anchor="middle">module[method]</text>
+
+    <rect x="642" y="30" width="128" height="84" rx="8" fill="#e3f0ee" stroke="#1f6560"/>
+    <text x="706" y="50" text-anchor="middle" font-weight="600" font-size="10.5">⑤ handler</text>
+    <text x="706" y="68" text-anchor="middle">route(async req =&gt;</text>
+    <text x="706" y="81" text-anchor="middle">validate · auth ·</text>
+    <text x="706" y="94" text-anchor="middle">db · AI · json())</text>
+  </g>
+  <g stroke="#5d5a63" stroke-width="1.2" fill="none">
+    <path d="M150 72 L166 72" marker-end="url(#a3)"/><path d="M308 72 L324 72" marker-end="url(#a3)"/>
+    <path d="M466 72 L482 72" marker-end="url(#a3)"/><path d="M624 72 L640 72" marker-end="url(#a3)"/>
+  </g>
+  <!-- outcomes -->
+  <g font-size="9.2">
+    <rect x="484" y="136" width="140" height="58" rx="6" fill="#fff" stroke="#c9c3bb"/>
+    <text x="554" y="153" text-anchor="middle" class="mono" font-size="8.2">403 cross_site_request</text>
+    <text x="554" y="168" text-anchor="middle" class="mono" font-size="8.2">404 {error:"not_found"}</text>
+    <text x="554" y="183" text-anchor="middle" class="mono" font-size="8.2">405 method_not_allowed</text>
+    <path d="M554 114 L554 134" stroke="#8b8791" fill="none" marker-end="url(#a3)"/>
+    <rect x="600" y="136" width="170" height="92" rx="6" fill="#fff" stroke="#c9c3bb" transform="translate(40,0)"/>
+    <text x="725" y="152" text-anchor="middle" font-weight="600">⑥ route() wrapper</text>
+    <text x="650" y="168" class="mono" font-size="8">HttpError → {error} + status</text>
+    <text x="650" y="181" class="mono" font-size="8">RateLimit → 429 + retry-after</text>
+    <text x="650" y="194" class="mono" font-size="8">ZodError → 400 invalid_request</text>
+    <text x="650" y="207" class="mono" font-size="8">anything else → 500</text>
+    <text x="650" y="220" class="mono" font-size="8">cache-control per route</text>
+    <path d="M706 114 L706 134" stroke="#8b8791" fill="none" marker-end="url(#a3)"/>
+  </g>
+  <!-- dev lane -->
+  <line x1="10" y1="246" x2="770" y2="246" stroke="#dcd8d2"/>
+  <text x="10" y="266" font-size="10.5" font-weight="600" fill="#1f6560">LOCAL DEV (npm run dev)</text>
+  <g font-size="9.4">
+    <rect x="10" y="276" width="140" height="46" rx="8" fill="#f6f3ee" stroke="#1c1b1f"/>
+    <text x="80" y="296" text-anchor="middle" font-weight="600">Browser :5173</text>
+    <text x="80" y="311" text-anchor="middle" fill="#5d5a63">same fetch calls</text>
+    <rect x="168" y="276" width="298" height="46" rx="8" fill="#fff" stroke="#8b8791"/>
+    <text x="317" y="296" text-anchor="middle" font-weight="600">dev/api-plugin.ts (Vite middleware)</text>
+    <text x="317" y="311" text-anchor="middle" fill="#5d5a63">loadEnv(.env.local) → toRequest(req) → ssrLoadModule(router)</text>
+    <rect x="484" y="276" width="140" height="46" rx="8" fill="#f5e7ea" stroke="#8a2b3d"/>
+    <text x="554" y="296" text-anchor="middle" font-weight="600">same router GET/POST</text>
+    <text x="554" y="311" text-anchor="middle" fill="#5d5a63">no __path → as-is</text>
+  </g>
+  <g stroke="#5d5a63" stroke-width="1.2" fill="none">
+    <path d="M150 299 L166 299" marker-end="url(#a3)"/><path d="M466 299 L482 299" marker-end="url(#a3)"/>
+    <path d="M554 276 L554 182" stroke-dasharray="3 3" marker-end="url(#a3)"/>
+  </g>
+</svg>
+<figcaption><b>Figure 2.</b> Request lifecycle. Production and local development share steps ③–⑥ exactly; only the
+  way the request reaches the router differs.</figcaption>
+</figure>
+
+<h3><span class="num">3.1</span>Step by step</h3>
+<ol>
+  <li><b>Rewrite.</b> <code>vercel.json</code> has two rewrites. <code>/api/:path(.*)</code> becomes
+    <code>/api/router?__path=:path</code>; everything else becomes <code>/index.html</code> so client-side routes work.</li>
+  <li><b>Rebuild the original request.</b> <code>originalRequest()</code> in <code>api/router.ts</code> reads
+    <code>__path</code>, deletes it from the query string, restores <code>url.pathname = /api/&lt;path&gt;</code>, and
+    re-creates the <code>Request</code> with the same method, headers (including <code>Cookie</code> and
+    <code>Origin</code>) and body bytes. Handlers therefore see their real URL and query string.</li>
+  <li><b>Cross-site check.</b> <code>crossSite()</code> rejects any non-GET request whose <code>Origin</code> is another site
+    with <code>403 {"error":"cross_site_request"}</code> (Section 9.5).</li>
+  <li><b>Match.</b> <code>ROUTES</code> is an ordered list of <code>[pattern, module]</code>. Each pattern compiles to
+    <code>^pattern/?$</code> with <code>:id</code> replaced by <code>[^/]+</code>. Order matters: static segments come before
+    <code>:id</code>, so <code>/api/listings/analyze</code> never matches <code>/api/listings/:id</code>. No match gives
+    <code>404 {"error":"not_found"}</code>; a module without that method export gives <code>405 {"error":"method_not_allowed"}</code>.</li>
+  <li><b>Handle.</b> Each route module exports <code>GET</code> and/or <code>POST</code>, each wrapped in
+    <code>route()</code> from <code>api/_lib/http.ts</code>. Handlers throw instead of building error responses. JSON bodies are read with <code>readJson()</code>, which rejects any body not sent as <code>Content-Type: application/json</code> with <code>415</code> and malformed JSON with <code>400</code>.</li>
+  <li><b>Wrap errors.</b> <code>route()</code> turns a thrown <code>HttpError(status, message)</code> into
+    <code>{"error": message}</code> with that status; a <code>RateLimitError</code> (a subclass carrying
+    <code>retryAfterSeconds</code>) into <code>429 {"error":"rate_limited","message","retry_after"}</code> plus a
+    <code>Retry-After</code> header; a <code>ZodError</code> into <code>400 {"error":"invalid_request","issues":[…]}</code>;
+    anything else into a logged <code>500 {"error":"internal_error"}</code>. Stack traces never reach the client.</li>
+  <li><b>Respond.</b> <code>json(data, status)</code> sets <code>content-type: application/json</code> and
+    <code>cache-control: no-store</code>. Public, non-personal reads opt in to CDN caching with <code>publicCache(response, seconds)</code>, which sets <code>public, max-age=0, s-maxage=N, stale-while-revalidate=10N</code>: <code>/api/areas</code> 1 h, <code>/api/listings</code> 30 s, <code>/api/listings/:id</code> and <code>/:id/complete</code> 60 s. Everything personal or date-sensitive (search, contact, availability, bookings, me, notifications, auth) stays <code>no-store</code>.</li>
+</ol>
+
+<h3><span class="num">3.2</span>Anatomy of a route module</h3>
+<pre><code><span class="c">// api/_routes/listings/[id]/contact.ts</span>
+<span class="k">export const</span> GET = route(<span class="k">async</span> (request) =&gt; {
+  <span class="k">const</span> id = listingIdFrom(request)          <span class="c">// zod uuid check, else 404 without touching the DB</span>
+  <span class="k">const</span> { data, error } = <span class="k">await</span> db().from(<span class="s">'listings'</span>)
+    .select(<span class="s">'owner_name, owner_contact'</span>).eq(<span class="s">'id'</span>, id).maybeSingle()
+  <span class="k">if</span> (error) <span class="k">throw</span> error                    <span class="c">// becomes 500 internal_error</span>
+  <span class="k">if</span> (!data) <span class="k">throw new</span> HttpError(404, <span class="s">'Listing not found'</span>)
+  <span class="k">return</span> json(data)
+})</code></pre>
+
+<h3><span class="num">3.3</span>Local development parity</h3>
+<p><code>npm run dev</code> starts Vite with the plugin in <code>dev/api-plugin.ts</code>. The plugin copies every
+  variable from <code>.env.local</code> into <code>process.env</code> (mirroring Vercel’s server-side env), converts
+  Node’s <code>IncomingMessage</code> into a Web <code>Request</code>, loads <code>api/router.ts</code> through
+  <code>server.ssrLoadModule</code> on every request (so edits hot-reload), and calls the router’s <code>GET</code> or
+  <code>POST</code>. Because no <code>__path</code> is present, the router uses the URL as-is. The whole stack therefore
+  runs locally without <code>vercel dev</code>.</p>
+
+<div class="callout">
+  <span class="label">Adding an endpoint</span>
+  <p>1) Create <code>api/_routes/&lt;name&gt;.ts</code> exporting <code>GET</code>/<code>POST</code> wrapped in
+    <code>route()</code>. 2) Import it in <code>api/router.ts</code> and add a <code>[pattern, module]</code> row, with
+    static segments above any <code>:id</code> sibling. 3) Server imports must end in <code>.js</code> (ESM on Vercel);
+    <code>tests/esm-imports.test.ts</code> checks this. <code>tests/api-plugin.test.ts</code> fails if a route file is not
+    registered.</p>
+</div>
+</section>
+
+<!-- ============================ 4 ============================ -->
+<section id="s4">
+<h2><span class="num">4</span>Data model</h2>
+<p>The schema lives in <code>supabase/migrations/</code> and is applied in filename order (SQL editor or
+  <code>supabase db push</code>). Extensions are installed into the <code>extensions</code> schema per Supabase
+  convention: <code>vector</code> (pgvector), <code>postgis</code> and <code>btree_gist</code>.</p>
+
+<figure>
+<svg viewBox="0 0 780 482" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="crow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,6 L11,6 M11,0 L3,6 L11,12" fill="none" stroke="#5d5a63" stroke-width="1.3"/></marker>
+    <marker id="one" viewBox="0 0 12 12" refX="2" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M2,0 L2,12 M6,0 L6,12" fill="none" stroke="#5d5a63" stroke-width="1.3"/></marker>
+  </defs>
+  <style>
+    .th { font-size: 11px; font-weight: 600; fill: #fff; }
+    .col { font-size: 9.2px; fill: #1c1b1f; }
+    .pk { font-weight: 700; }
+    .fk { fill: #8a2b3d; }
+    .ty { fill: #8b8791; }
+  </style>
+  <!-- users -->
+  <g transform="translate(14,34)">
+    <rect width="200" height="150" rx="6" fill="#fff" stroke="#2f4f86"/>
+    <path d="M0 6 a6 6 0 0 1 6 -6 h188 a6 6 0 0 1 6 6 v16 h-200z" fill="#2f4f86"/>
+    <text x="10" y="15" class="th">public.users</text>
+    <text x="10" y="38" class="col pk">id <tspan class="ty">uuid PK</tspan></text>
+    <text x="10" y="53" class="col">email <tspan class="ty">citext unique</tspan></text>
+    <text x="10" y="68" class="col">name <tspan class="ty">text</tspan></text>
+    <text x="10" y="83" class="col">password_hash <tspan class="ty">text null</tspan></text>
+    <text x="10" y="98" class="col">google_sub <tspan class="ty">text unique null</tspan></text>
+    <text x="10" y="113" class="col">created_at <tspan class="ty">timestamptz</tspan></text>
+    <text x="10" y="135" class="col ty" font-size="8.2">+ login_attempts (email citext PK,</text>
+    <text x="10" y="147" class="col ty" font-size="8.2">  failed, locked_until) · no FK</text>
+  </g>
+  <!-- sessions -->
+  <g transform="translate(14,220)">
+    <rect width="200" height="90" rx="6" fill="#fff" stroke="#2f4f86"/>
+    <path d="M0 6 a6 6 0 0 1 6 -6 h188 a6 6 0 0 1 6 6 v16 h-200z" fill="#2f4f86"/>
+    <text x="10" y="15" class="th">public.sessions</text>
+    <text x="10" y="38" class="col pk">token_hash <tspan class="ty">text PK (SHA-256)</tspan></text>
+    <text x="10" y="53" class="col fk">user_id <tspan class="ty">→ users.id</tspan></text>
+    <text x="10" y="68" class="col">expires_at <tspan class="ty">now() + 30 days</tspan></text>
+    <text x="10" y="83" class="col">created_at <tspan class="ty">timestamptz</tspan></text>
+  </g>
+  <!-- areas -->
+  <g transform="translate(290,34)">
+    <rect width="180" height="68" rx="6" fill="#fff" stroke="#1f6560"/>
+    <path d="M0 6 a6 6 0 0 1 6 -6 h168 a6 6 0 0 1 6 6 v16 h-180z" fill="#1f6560"/>
+    <text x="10" y="15" class="th">public.areas</text>
+    <text x="10" y="38" class="col pk">name <tspan class="ty">text PK</tspan></text>
+    <text x="10" y="53" class="col">lat, lng <tspan class="ty">double precision</tspan></text>
+    <text x="10" y="64" class="col ty" font-size="8">15 Chennai centroids (seeded)</text>
+  </g>
+  <!-- listings -->
+  <g transform="translate(290,134)">
+    <rect width="220" height="316" rx="6" fill="#fff" stroke="#8a2b3d"/>
+    <path d="M0 6 a6 6 0 0 1 6 -6 h208 a6 6 0 0 1 6 6 v16 h-220z" fill="#8a2b3d"/>
+    <text x="10" y="15" class="th">public.listings</text>
+    <text x="10" y="38" class="col pk">id <tspan class="ty">uuid PK</tspan></text>
+    <text x="10" y="53" class="col fk">owner_id <tspan class="ty">→ users.id, null</tspan></text>
+    <text x="10" y="68" class="col">owner_name, owner_contact <tspan class="ty">text</tspan></text>
+    <text x="10" y="83" class="col">image_url <tspan class="ty">text (own bucket)</tspan></text>
+    <text x="10" y="98" class="col">title, description <tspan class="ty">text</tspan></text>
+    <text x="10" y="113" class="col">category <tspan class="ty">text (vocab)</tspan></text>
+    <text x="10" y="128" class="col">gender <tspan class="ty">women | men | unisex</tspan></text>
+    <text x="10" y="143" class="col">occasions, style_tags, colors <tspan class="ty">text[]</tspan></text>
+    <text x="10" y="158" class="col">formality <tspan class="ty">smallint 1–5</tspan></text>
+    <text x="10" y="173" class="col">size <tspan class="ty">XS … XXL | FREE</tspan></text>
+    <text x="10" y="188" class="col">price_per_day <tspan class="ty">int &gt; 0</tspan></text>
+    <text x="10" y="203" class="col fk">area <tspan class="ty">→ areas.name</tspan></text>
+    <text x="10" y="218" class="col">location <tspan class="ty">geography(point,4326)</tspan></text>
+    <text x="10" y="233" class="col">embedding <tspan class="ty">vector(768)</tspan></text>
+    <text x="10" y="248" class="col">created_at <tspan class="ty">timestamptz</tspan></text>
+    <line x1="8" y1="260" x2="212" y2="260" stroke="#eee"/>
+    <text x="10" y="275" class="col ty" font-size="8.4">idx: hnsw(embedding cosine) · gist(location)</text>
+    <text x="10" y="289" class="col ty" font-size="8.4">gin(occasions) · btree(created_at desc)</text>
+    <text x="10" y="303" class="col ty" font-size="8.4">btree(owner_id)</text>
+  </g>
+  <!-- bookings -->
+  <g transform="translate(560,34)">
+    <rect width="206" height="284" rx="6" fill="#fff" stroke="#9a6b12"/>
+    <path d="M0 6 a6 6 0 0 1 6 -6 h194 a6 6 0 0 1 6 6 v16 h-206z" fill="#9a6b12"/>
+    <text x="10" y="15" class="th">public.bookings</text>
+    <text x="10" y="38" class="col pk">id <tspan class="ty">uuid PK</tspan></text>
+    <text x="10" y="53" class="col fk">listing_id <tspan class="ty">→ listings.id cascade</tspan></text>
+    <text x="10" y="68" class="col fk">borrower_id <tspan class="ty">→ users.id, null</tspan></text>
+    <text x="10" y="83" class="col">borrower_name, borrower_contact</text>
+    <text x="10" y="98" class="col">start_date, end_date <tspan class="ty">date</tspan></text>
+    <text x="10" y="113" class="col">days <tspan class="ty">int 1–14</tspan></text>
+    <text x="10" y="128" class="col">price_per_day, total, advance <tspan class="ty">int</tspan></text>
+    <text x="10" y="143" class="col">status <tspan class="ty">confirmed | cancelled</tspan></text>
+    <text x="10" y="158" class="col">payment_method <tspan class="ty">upi | card</tspan></text>
+    <text x="10" y="173" class="col">payment_ref <tspan class="ty">text</tspan></text>
+    <text x="10" y="188" class="col">access_token_hash <tspan class="ty">legacy, null</tspan></text>
+    <line x1="8" y1="200" x2="198" y2="200" stroke="#eee"/>
+    <text x="10" y="215" class="col" fill="#9a6b12" font-weight="600" font-size="8.6">EXCLUDE gist (listing_id =,</text>
+    <text x="10" y="228" class="col" fill="#9a6b12" font-weight="600" font-size="8.6">  daterange(start,end,'[]') &amp;&amp;)</text>
+    <text x="10" y="241" class="col" fill="#9a6b12" font-size="8.6">  WHERE status = 'confirmed'</text>
+    <text x="10" y="259" class="col ty" font-size="8.4">idx (listing_id, end_date)</text>
+    <text x="10" y="272" class="col ty" font-size="8.4">idx (borrower_id, start_date)</text>
+  </g>
+  <!-- notifications -->
+  <g transform="translate(560,340)">
+    <rect width="206" height="116" rx="6" fill="#fff" stroke="#5d5a63"/>
+    <path d="M0 6 a6 6 0 0 1 6 -6 h194 a6 6 0 0 1 6 6 v16 h-206z" fill="#5d5a63"/>
+    <text x="10" y="15" class="th">public.notifications</text>
+    <text x="10" y="38" class="col pk">id <tspan class="ty">uuid PK</tspan></text>
+    <text x="10" y="53" class="col fk">user_id <tspan class="ty">→ users.id cascade</tspan></text>
+    <text x="10" y="68" class="col fk">booking_id <tspan class="ty">→ bookings.id cascade</tspan></text>
+    <text x="10" y="83" class="col">type <tspan class="ty">'booking_received'</tspan></text>
+    <text x="10" y="98" class="col">read_at <tspan class="ty">null = unread</tspan></text>
+    <text x="10" y="111" class="col ty" font-size="8.4">idx (user_id, created_at desc)</text>
+  </g>
+  <!-- relationships -->
+  <g fill="none" stroke="#5d5a63" stroke-width="1.2">
+    <path d="M114 184 L114 218" marker-start="url(#one)" marker-end="url(#crow)"/>
+    <path d="M214 84 L262 84 L262 190 L288 190" marker-start="url(#one)" marker-end="url(#crow)"/>
+    <path d="M170 34 L170 14 L640 14 L640 32" marker-start="url(#one)" marker-end="url(#crow)"/>
+    <path d="M214 150 L246 150 L246 468 L540 468 L540 400 L558 400" marker-start="url(#one)" marker-end="url(#crow)"/>
+    <path d="M380 102 L380 132" marker-start="url(#one)" marker-end="url(#crow)"/>
+    <path d="M510 200 L535 200 L535 90 L558 90" marker-start="url(#one)" marker-end="url(#crow)"/>
+    <path d="M663 318 L663 338" marker-start="url(#one)" marker-end="url(#crow)"/>
+  </g>
+  <g font-size="8.6" fill="#8a2b3d">
+    <text x="120" y="206">user_id</text>
+    <text x="218" y="78">owner_id</text>
+    <text x="300" y="10">borrower_id</text>
+    <text x="300" y="479">user_id (owner notified by trigger)</text>
+    <text x="386" y="122">area</text>
+    <text x="512" y="214">listing_id</text>
+    <text x="668" y="332">booking_id</text>
+  </g>
+  <!-- storage -->
+  <g transform="translate(14,350)">
+    <rect width="200" height="80" rx="6" fill="#e3f0ee" stroke="#1f6560" stroke-dasharray="4 3"/>
+    <text x="10" y="20" font-size="11" font-weight="600" fill="#1f6560">storage.buckets: listings</text>
+    <text x="10" y="38" font-size="9" fill="#1c1b1f">public · 8 MB · jpeg/png/webp/heic/heif</text>
+    <text x="10" y="53" font-size="9" fill="#1c1b1f" class="mono">YYYY-MM-DD/&lt;uuid&gt;.&lt;ext&gt;</text>
+    <text x="10" y="68" font-size="9" fill="#5d5a63">listings.image_url points here</text>
+  </g>
+</svg>
+<figcaption><b>Figure 3.</b> Entity-relationship view. Blue tables are the new account tables (Section 9); the
+  <code>owner_id</code>, <code>borrower_id</code> and <code>user_id</code> foreign keys reference <code>public.users</code>.
+  Crow’s feet mark the “many” side.</figcaption>
+</figure>
+
+<h3><span class="num">4.1</span>Tables</h3>
+<table>
+  <thead><tr><th style="width:17%">Table</th><th style="width:26%">Created in</th><th>Purpose and notable details</th></tr></thead>
+  <tbody>
+    <tr><td><code>areas</code></td><td><code>…0929000001_schema.sql</code>, seeded by <code>…0929000002_seed_areas.sql</code></td>
+      <td>15 Chennai neighbourhood centroids (T. Nagar, Adyar, Velachery, Anna Nagar, Tambaram, OMR, …). The area picker, the
+        search origin and each listing’s location all come from here. There is no real geolocation.</td></tr>
+    <tr><td><code>listings</code></td><td><code>…0929000001_schema.sql</code>; <code>owner_id</code> added later</td>
+      <td>One rentable piece. AI-drafted fields plus lister-set <code>size</code>, <code>price_per_day</code>,
+        <code>area</code>, owner name/contact. <code>location</code> and <code>embedding</code> are always computed by the
+        server. <code>owner_contact</code> is never in the public column list.</td></tr>
+    <tr><td><code>bookings</code></td><td><code>…0930000001_bookings.sql</code></td>
+      <td>Reserved date ranges with the recomputed price, advance and mock payment reference. Check constraints mirror
+        the business rules (<code>days between 1 and 14</code>, <code>advance &lt;= total</code>,
+        <code>end_date &gt;= start_date</code>). <code>access_token_hash</code> is a Phase 6 leftover, now nullable.</td></tr>
+    <tr><td><code>notifications</code></td><td><code>…0930000002_accounts_notifications.sql</code></td>
+      <td>The header bell. Written only by a trigger. <code>type</code> is constrained to
+        <code>'booking_received'</code> for now.</td></tr>
+    <tr><td><code>users</code>, <code>sessions</code></td><td><code>…0930000004_own_auth.sql</code> (Section 9)</td>
+      <td>DRAPE’s own accounts and server-side sessions. They replace Supabase Auth’s <code>auth.users</code> and the
+        Phase 7 <code>profiles</code> table (whose name now lives in <code>users.name</code>).</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">4.2</span>Indexes and why each exists</h3>
+<ul>
+  <li><code>listings_embedding_idx</code>: <b>HNSW</b> on <code>embedding vector_cosine_ops</code>. Makes
+    <code>order by embedding &lt;=&gt; q_emb</code> an approximate nearest-neighbour scan instead of a full sort.</li>
+  <li><code>listings_location_idx</code>: <b>GiST</b> on the geography point. Serves <code>st_dwithin</code> radius filters.</li>
+  <li><code>listings_occasions_idx</code>: <b>GIN</b> on <code>occasions</code>. Serves
+    <code>GET /api/listings?occasion=</code>, which uses array containment (<code>@&gt;</code>). The GiST location index also serves the <code>&lt;-&gt;</code> distance ordering in <code>nearby_listings</code>.</li>
+  <li><code>listings_created_at_idx</code>, <code>listings_owner_idx</code>: newest-first lists and profile stats.</li>
+  <li><code>bookings_listing_dates_idx (listing_id, end_date)</code>: availability look-ups (“upcoming bookings of this
+    listing”). <code>bookings_borrower_idx (borrower_id, start_date)</code>: My Rentals.</li>
+  <li><code>notifications_user_idx (user_id, created_at desc)</code>: the bell’s newest-first query.</li>
+</ul>
+
+<h3><span class="num">4.3</span>Row-level security: on, with no policies</h3>
+<p>Every table has <code>enable row level security</code> and <b>no policies</b>. In Postgres that means the
+  <code>anon</code> and <code>authenticated</code> roles can read and write <i>nothing</i> through Supabase’s public REST
+  or GraphQL endpoints. Only the service role (which bypasses RLS) can touch data, and only the API holds the
+  service-role key. The RPCs follow the same rule: <code>revoke execute … from public, anon, authenticated</code> and
+  <code>grant execute … to service_role</code>. The consequence is simple: <b>the only way to data is through
+  <code>/api</code></b>, where validation and authorisation live.</p>
+
+<h3><span class="num">4.4</span>The constraint that makes double-booking impossible</h3>
+<pre><code><span class="k">create extension if not exists</span> btree_gist <span class="k">with schema</span> extensions;
+<span class="k">constraint</span> bookings_no_overlap <span class="k">exclude using</span> gist (
+  listing_id <span class="k">with</span> =,
+  daterange(start_date, end_date, <span class="s">'[]'</span>) <span class="k">with</span> &amp;&amp;
+) <span class="k">where</span> (status = <span class="s">'confirmed'</span>)</code></pre>
+<p>An exclusion constraint says “no two rows may have <i>equal</i> <code>listing_id</code> <b>and</b>
+  <i>overlapping</i> date ranges”. <code>btree_gist</code> is what lets a GiST index handle the plain equality on a uuid
+  alongside the range overlap. The range is inclusive on both ends (<code>'[]'</code>), so returning on the 12th and
+  someone else picking up on the 12th <i>is</i> a conflict. Because the database enforces this atomically, two
+  borrowers paying at the same instant cannot both win: the second insert fails with SQLSTATE <code>23P01</code>, which
+  the API maps to HTTP 409. Cancelled bookings are excluded from the check by the partial <code>where</code>.</p>
+
+<h3><span class="num">4.5</span>Functions and triggers</h3>
+<table>
+  <thead><tr><th style="width:26%">Object</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>match_listings(q_emb, q_size, q_max_price, q_gender, q_lat, q_lng, q_radius_km, k)</code></td>
+      <td>Search RPC (<code>language sql stable</code>). Applies hard filters, then orders by cosine distance. Section 6.</td></tr>
+    <tr><td><code>nearby_listings(q_lat, q_lng, q_occasion, lim, off)</code></td>
+      <td>Browsing RPC (<code>…0930000005_nearby_listings.sql</code>). Optional occasion filter (<code>occasions @&gt; array[q_occasion]</code>), ordered nearest first by <code>location &lt;-&gt; point</code> then newest, with <code>distance_km</code> and a <code>count(*) over ()</code> total for paging. Section 4.6.</td></tr>
+    <tr><td><code>complete_the_look(anchor, pair_categories, k)</code></td>
+      <td>Outfit-pairing RPC. Section 7.</td></tr>
+    <tr><td><code>notify_owner_of_booking()</code> + trigger <code>on_booking_created</code></td>
+      <td><code>after insert on bookings</code>: inserts a <code>booking_received</code> notification for the listing’s owner.
+        <code>security definer</code> with <code>search_path = ''</code> (fully-qualified names, no search-path hijack).
+        Section 10.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">4.6</span>Browsing: nearest first, with paging</h3>
+<p>The home “nearby” row and Explore use <code>GET /api/listings?area=&amp;occasion=&amp;limit=&amp;offset=</code> rather than
+  search. With an <code>area</code>, the route calls <code>nearby_listings</code> with that area’s centroid, and results come
+  back nearest first with <code>distance_km</code>. The RPC’s window count (<code>count(*) over ()</code>) becomes
+  <code>total</code>, so the client knows when to stop paging. Explore pages 24 at a time. Without an <code>area</code>, the
+  route falls back to newest first, with <code>.range(offset, offset + limit − 1)</code> and an exact count.</p>
+<pre><code>GET /api/listings?area=Adyar&amp;occasion=wedding&amp;limit=24&amp;offset=0
+200  cache-control: public, max-age=0, s-maxage=30, stale-while-revalidate=300
+{ <span class="s">"listings"</span>: [ { <span class="s">"id"</span>: <span class="s">"…"</span>, <span class="s">"title"</span>: <span class="s">"…"</span>, <span class="s">"area"</span>: <span class="s">"Besant Nagar"</span>, <span class="s">"distance_km"</span>: 0.3, … } ], <span class="s">"total"</span>: 17 }</code></pre>
+</section>
+
+<!-- ============================ 5 ============================ -->
+<section id="s5">
+<h2><span class="num">5</span>Upload pipeline: photo to listing</h2>
+<p>Listing is a two-request conversation. <code>POST /api/listings/analyze</code> turns a photo into an editable
+  draft; after the human edits it, <code>POST /api/listings</code> publishes it. Splitting them keeps a human in the
+  loop: the model proposes, the lister decides.</p>
+
+<figure>
+<svg viewBox="0 0 780 360" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker></defs>
+  <text x="10" y="16" font-size="10.5" font-weight="600" fill="#1f6560">REQUEST 1 · POST /api/listings/analyze (multipart "image", signed in)</text>
+  <g font-size="9.3">
+    <rect x="10" y="28" width="150" height="86" rx="8" fill="#f6f3ee" stroke="#1c1b1f"/>
+    <text x="85" y="47" text-anchor="middle" font-weight="600" font-size="10.3">readImage()</text>
+    <text x="85" y="64" text-anchor="middle">size ≤ 4 MB else 413</text>
+    <text x="85" y="78" text-anchor="middle">sniff magic bytes</text>
+    <text x="85" y="92" text-anchor="middle">unknown type → 415</text>
+    <text x="85" y="106" text-anchor="middle" fill="#5d5a63">(client MIME ignored)</text>
+
+    <rect x="200" y="28" width="190" height="40" rx="8" fill="#e3f0ee" stroke="#1f6560"/>
+    <text x="295" y="45" text-anchor="middle" font-weight="600">storeImage() → bucket</text>
+    <text x="295" y="59" text-anchor="middle" class="mono" font-size="8">YYYY-MM-DD/&lt;uuid&gt;.ext</text>
+    <rect x="200" y="76" width="190" height="52" rx="8" fill="#e8edf7" stroke="#2f4f86"/>
+    <text x="295" y="93" text-anchor="middle" font-weight="600">analyzeImage() → Gemini</text>
+    <text x="295" y="107" text-anchor="middle">vision prompt + JSON schema</text>
+    <text x="295" y="120" text-anchor="middle">normalize → zod → 1 retry</text>
+    <text x="295" y="142" text-anchor="middle" font-size="8.6" fill="#5d5a63">Promise.allSettled: run in parallel</text>
+
+    <g font-size="9">
+      <rect x="440" y="26" width="330" height="24" rx="5" fill="#e3f0ee" stroke="#1f6560"/>
+      <text x="450" y="42"><tspan font-weight="600">200</tspan> { image_url, draft } → lister edits the draft</text>
+      <rect x="440" y="56" width="330" height="24" rx="5" fill="#fff" stroke="#c9c3bb"/>
+      <text x="450" y="72"><tspan font-weight="600">422</tspan> { error: "not_clothing" } · photo deleted</text>
+      <rect x="440" y="86" width="330" height="24" rx="5" fill="#fff" stroke="#c9c3bb"/>
+      <text x="450" y="102"><tspan font-weight="600">429</tspan> rate_limited + retry_after · photo deleted</text>
+      <rect x="440" y="116" width="330" height="24" rx="5" fill="#fbf1dc" stroke="#9a6b12"/>
+      <text x="450" y="132"><tspan font-weight="600">502</tspan> { error: "analysis_failed", image_url } · photo kept</text>
+      <text x="450" y="154" fill="#9a6b12">→ UI switches to manual tagging with the stored photo</text>
+    </g>
+  </g>
+  <g stroke="#5d5a63" stroke-width="1.2" fill="none">
+    <path d="M160 60 L198 48" marker-end="url(#a5)"/><path d="M160 80 L198 100" marker-end="url(#a5)"/>
+    <path d="M390 48 C 415 48, 415 70, 438 68" marker-end="url(#a5)"/><path d="M390 102 L438 100" marker-end="url(#a5)"/>
+  </g>
+  <line x1="10" y1="178" x2="770" y2="178" stroke="#dcd8d2"/>
+  <text x="10" y="200" font-size="10.5" font-weight="600" fill="#8a2b3d">REQUEST 2 · POST /api/listings (JSON, signed in)</text>
+  <g font-size="9.3">
+    <rect x="10" y="212" width="140" height="92" rx="8" fill="#f6f3ee" stroke="#1c1b1f"/>
+    <text x="80" y="232" text-anchor="middle" font-weight="600" font-size="10.3">Edited draft</text>
+    <text x="80" y="250" text-anchor="middle">+ size, price_per_day</text>
+    <text x="80" y="264" text-anchor="middle">+ area, owner_name,</text>
+    <text x="80" y="278" text-anchor="middle">owner_contact</text>
+    <text x="80" y="294" text-anchor="middle">+ image_url</text>
+    <rect x="172" y="212" width="160" height="92" rx="8" fill="#f5e7ea" stroke="#8a2b3d"/>
+    <text x="252" y="232" text-anchor="middle" font-weight="600" font-size="10.3">Guards</text>
+    <text x="252" y="250" text-anchor="middle">session user (or admin key)</text>
+    <text x="252" y="264" text-anchor="middle">createListingSchema (zod)</text>
+    <text x="252" y="278" text-anchor="middle">isOwnImageUrl(image_url)</text>
+    <text x="252" y="292" text-anchor="middle" fill="#5d5a63">else 401 / 400</text>
+    <rect x="354" y="212" width="170" height="40" rx="8" fill="#e3f0ee" stroke="#1f6560"/>
+    <text x="439" y="229" text-anchor="middle" font-weight="600">getArea(area)</text>
+    <text x="439" y="243" text-anchor="middle">lat/lng or 400 Unknown area</text>
+    <rect x="354" y="262" width="170" height="42" rx="8" fill="#e8edf7" stroke="#2f4f86"/>
+    <text x="439" y="279" text-anchor="middle" font-weight="600">embed(embeddingText)</text>
+    <text x="439" y="293" text-anchor="middle">RETRIEVAL_DOCUMENT, 768-d</text>
+    <rect x="548" y="212" width="222" height="92" rx="8" fill="#fff" stroke="#8b8791"/>
+    <text x="659" y="232" text-anchor="middle" font-weight="600" font-size="10.3">INSERT listings</text>
+    <text x="659" y="250" text-anchor="middle">owner_id = session user</text>
+    <text x="659" y="264" text-anchor="middle" class="mono" font-size="8.2">SRID=4326;POINT(lng lat)</text>
+    <text x="659" y="278" text-anchor="middle">embedding = JSON array</text>
+    <text x="659" y="294" text-anchor="middle" font-weight="600">201 { listing } · searchable now</text>
+  </g>
+  <g stroke="#5d5a63" stroke-width="1.2" fill="none">
+    <path d="M150 258 L170 258" marker-end="url(#a5)"/><path d="M332 245 L352 234" marker-end="url(#a5)"/>
+    <path d="M332 270 L352 282" marker-end="url(#a5)"/><path d="M524 232 L546 245" marker-end="url(#a5)"/>
+    <path d="M524 283 L546 270" marker-end="url(#a5)"/>
+  </g>
+  <text x="10" y="332" font-size="9" fill="#5d5a63">Both routes: api/_routes/listings/analyze.ts and api/_routes/listings/index.ts · helpers in api/_lib/images.ts, vision.ts, gemini.ts</text>
+</svg>
+<figcaption><b>Figure 4.</b> The upload pipeline. Storage and tagging run in parallel to keep the wait under the
+  PRD’s 10-second target (tagging alone measures about 3 s).</figcaption>
+</figure>
+
+<h3><span class="num">5.1</span>Step 1: check the caller, then read and sniff the image</h3>
+<p>Analyze requires a signed-in session (<code>401</code> otherwise), or the server key in <code>x-admin-key</code> for the seed and readiness scripts, because every call spends AI quota and stores a photo. The UI therefore asks the lister to sign in before choosing a photo. The UI downsizes photos before upload, because Vercel rejects request bodies over 4.5 MB. The server enforces
+  <code>MAX_IMAGE_BYTES = 4 MB</code> (413 otherwise). It never trusts the browser’s declared MIME type:
+  <code>sniffImage()</code> in <code>api/_lib/images.ts</code> reads the first bytes.</p>
+<table>
+  <thead><tr><th>Type</th><th>Magic bytes checked</th><th>Stored as</th></tr></thead>
+  <tbody>
+    <tr><td>JPEG</td><td><code>FF D8 FF</code> at offset 0</td><td><code>.jpeg</code>, <code>image/jpeg</code></td></tr>
+    <tr><td>PNG</td><td><code>89</code> then ASCII <code>PNG</code></td><td><code>.png</code>, <code>image/png</code></td></tr>
+    <tr><td>WebP</td><td><code>RIFF</code> at 0 and <code>WEBP</code> at 8</td><td><code>.webp</code>, <code>image/webp</code></td></tr>
+    <tr><td>HEIC/HEIF</td><td><code>ftyp</code> at 4, brand <code>heic|heix|hevc|mif1|msf1|heif</code> at 8</td><td><code>.heic</code>, <code>image/heic</code></td></tr>
+  </tbody>
+</table>
+<p>Anything else is <code>415 Unsupported image type</code>, before any model is called.</p>
+
+<h3><span class="num">5.2</span>Step 2: store and tag in parallel</h3>
+<p><code>storeImage()</code> uploads to the <code>listings</code> bucket at <code>YYYY-MM-DD/&lt;random uuid&gt;.&lt;ext&gt;</code>
+  (<code>upsert: false</code>) and returns the public URL. At the same time <code>analyzeImage()</code> in
+  <code>api/_lib/vision.ts</code> sends the image inline (base64) to Gemini with:</p>
+<ul>
+  <li><b>A system prompt with strict rules</b> (<code>VISION_SYSTEM_PROMPT</code>): if the photo is not a rentable garment,
+    return only <code>{"is_clothing": false}</code>; describe the garment, never the person, body or background; pick
+    <code>category</code>, <code>occasions</code> and <code>gender</code> only from the controlled vocabulary, with
+    disambiguation notes (e.g. <i>ethnic_jacket</i> is Nehru/bandhgala only; western tailored is <i>blazer</i>; if the photo
+    shows a whole outfit, tag the most prominent rentable piece); 3–6 lowercase style tags; 1–3 colours; formality 1–5;
+    a two-sentence description whose <b>second sentence must say where the piece does not fit well</b> (this makes
+    search honest).</li>
+  <li><b>Structured output</b>: <code>responseMimeType: application/json</code> with <code>VISION_RESPONSE_SCHEMA</code>
+    (enums generated from <code>shared/vocab.ts</code>), <code>temperature 0.2</code>, <code>thinkingLevel: minimal</code>,
+    20-second timeout.</li>
+  <li><b>Normalise, then validate</b>: <code>normalizeVision()</code> de-duplicates and lower-cases tags, caps list
+    lengths and clamps formality into 1–5; then <code>visionResultSchema</code> (a zod discriminated union on
+    <code>is_clothing</code>) validates the result.</li>
+  <li><b>One retry</b>: <code>withOneRetry()</code> reruns generate + validate once if it throws. It does <i>not</i> retry
+    a <code>RateLimitError</code>, because an immediate retry would spend another request from an exhausted quota.</li>
+</ul>
+
+<h3><span class="num">5.3</span>Step 3: decide the outcome</h3>
+<p><code>Promise.allSettled</code> lets the route inspect both results. A storage failure is a real error. A rate limit
+  deletes the photo and returns 429 so the UI can say “try again in N seconds”. Any other vision failure
+  <b>keeps</b> the photo and returns <code>502 {"error":"analysis_failed","image_url"}</code>, so the UI falls back to
+  manual tagging with the already-stored image. A not-clothing verdict deletes the photo and returns 422.</p>
+<pre><code><span class="c">// 200 OK — POST /api/listings/analyze</span>
+{
+  <span class="s">"image_url"</span>: <span class="s">"https://&lt;project&gt;.supabase.co/storage/v1/object/public/listings/2026-09-30/5b1e….jpeg"</span>,
+  <span class="s">"draft"</span>: {
+    <span class="s">"title"</span>: <span class="s">"Maroon silk saree with gold zari border"</span>,
+    <span class="s">"category"</span>: <span class="s">"saree"</span>, <span class="s">"gender"</span>: <span class="s">"women"</span>,
+    <span class="s">"occasions"</span>: [<span class="s">"wedding"</span>, <span class="s">"reception"</span>, <span class="s">"festival"</span>],
+    <span class="s">"style_tags"</span>: [<span class="s">"silk"</span>, <span class="s">"zari"</span>, <span class="s">"traditional"</span>],
+    <span class="s">"colors"</span>: [<span class="s">"maroon"</span>, <span class="s">"gold"</span>], <span class="s">"formality"</span>: 4,
+    <span class="s">"description"</span>: <span class="s">"A rich silk saree for weddings and receptions. Too heavy for daytime college events."</span>
+  }
+}</code></pre>
+
+<h3><span class="num">5.4</span>Step 4: publish</h3>
+<p><code>POST /api/listings</code> requires a signed-in session (seed scripts may instead send the server key; see
+  Section 12). The body is validated by <code>createListingSchema</code> (the draft plus
+  <code>image_url</code>, <code>size</code>, <code>price_per_day</code> 1–100000, <code>area</code>,
+  <code>owner_name</code>, <code>owner_contact</code>). <code>isOwnImageUrl()</code> rejects any image URL that is not
+  under <code>&lt;SUPABASE_URL&gt;/storage/v1/object/public/listings/</code> (and any path containing <code>..</code>),
+  so listings can only show photos this app stored.</p>
+<p>The server then computes the two fields the client must never send, in parallel:</p>
+<ul>
+  <li><b>Location from area.</b> <code>getArea()</code> looks up the centroid and the insert writes
+    <code>location = 'SRID=4326;POINT(lng lat)'</code>. Note the order: longitude first, as PostGIS expects.</li>
+  <li><b>Embedding from semantics only.</b> <code>embeddingText()</code> joins title, category, occasions, style,
+    colours and description. Size and price are deliberately excluded because they are SQL filters, not meaning.</li>
+</ul>
+<pre><code><span class="c">// embeddingText() output, embedded with taskType RETRIEVAL_DOCUMENT</span>
+Maroon silk saree with gold zari border. saree. occasions: wedding, reception, festival.
+style: silk, zari, traditional. colors: maroon, gold. A rich silk saree for weddings and
+receptions. Too heavy for daytime college events.</code></pre>
+<p>The row is inserted with <code>owner_id</code> set to the session user and returned as
+  <code>201 {"listing": {…public columns…}}</code>. The write is synchronous, so the listing is searchable the moment
+  the response arrives.</p>
+</section>
+
+<!-- ============================ 6 ============================ -->
+<section id="s6">
+<h2><span class="num">6</span>Search pipeline: sentence to ranked matches</h2>
+<p><code>POST /api/search</code> is the heart of DRAPE. The code is split into pure, unit-tested pieces:
+  <code>api/_lib/search-ai.ts</code> (parser and reasons), <code>api/_lib/ladder.ts</code> (filters, fallback ladder,
+  messages) and <code>api/_lib/search.ts</code> (orchestration).</p>
+
+<pre><code><span class="c">// Request</span>
+POST /api/search
+{ <span class="s">"query"</span>: <span class="s">"need something for a friend's sangeet, M, under ₹800"</span>, <span class="s">"area"</span>: <span class="s">"Adyar"</span>,
+  <span class="s">"size"</span>: <span class="s">"M"</span>, <span class="s">"max_price"</span>: 800, <span class="s">"reasons"</span>: false }       <span class="c">// size, max_price, reasons optional</span></code></pre>
+
+<figure>
+<svg viewBox="0 0 780 330" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker></defs>
+  <g font-size="9.3">
+    <rect x="10" y="12" width="120" height="44" rx="8" fill="#f6f3ee" stroke="#1c1b1f"/>
+    <text x="70" y="30" text-anchor="middle" font-weight="600">zod validate</text>
+    <text x="70" y="45" text-anchor="middle" class="mono" font-size="8">searchRequestSchema</text>
+    <rect x="150" y="6" width="180" height="40" rx="8" fill="#fbf1dc" stroke="#9a6b12"/>
+    <text x="240" y="23" text-anchor="middle" font-weight="600">parseQuery() · OpenAI→Gemini</text>
+    <text x="240" y="37" text-anchor="middle">5 s timeout, zod, 1 retry</text>
+    <rect x="150" y="52" width="180" height="26" rx="8" fill="#e3f0ee" stroke="#1f6560"/>
+    <text x="240" y="69" text-anchor="middle" font-weight="600">getArea(area) · lat/lng</text>
+    <rect x="350" y="12" width="130" height="44" rx="8" fill="#f5e7ea" stroke="#8a2b3d"/>
+    <text x="415" y="30" text-anchor="middle" font-weight="600">mergeFilters()</text>
+    <text x="415" y="45" text-anchor="middle">chips override parser</text>
+    <rect x="500" y="12" width="130" height="44" rx="8" fill="#e8edf7" stroke="#2f4f86"/>
+    <text x="565" y="30" text-anchor="middle" font-weight="600">embed(query)</text>
+    <text x="565" y="45" text-anchor="middle">RETRIEVAL_QUERY</text>
+    <rect x="650" y="12" width="120" height="44" rx="8" fill="#fff" stroke="#8b8791"/>
+    <text x="710" y="30" text-anchor="middle" font-weight="600">planAttempts()</text>
+    <text x="710" y="45" text-anchor="middle">the ladder</text>
+  </g>
+  <g stroke="#5d5a63" stroke-width="1.2" fill="none">
+    <path d="M130 30 L148 26" marker-end="url(#a6)"/><path d="M130 40 L148 62" marker-end="url(#a6)"/>
+    <path d="M330 26 L348 32" marker-end="url(#a6)"/><path d="M330 64 L348 44" marker-end="url(#a6)"/>
+    <path d="M480 34 L498 34" marker-end="url(#a6)"/><path d="M630 34 L648 34" marker-end="url(#a6)"/>
+    <path d="M710 56 L710 72 L95 72 L95 106" marker-end="url(#a6)"/>
+  </g>
+  <!-- ladder -->
+  <text x="110" y="96" font-size="10" font-weight="600" fill="#8a2b3d">FALLBACK LADDER · match_listings(k = 12) per step</text>
+  <g font-size="9.2">
+    <rect x="10" y="108" width="170" height="64" rx="8" fill="#fff" stroke="#8a2b3d" stroke-width="1.4"/>
+    <text x="95" y="126" text-anchor="middle" font-weight="600" font-size="10">① strict</text>
+    <text x="95" y="142" text-anchor="middle">radius 10 km</text>
+    <text x="95" y="156" text-anchor="middle">budget kept</text>
+    <rect x="205" y="108" width="170" height="64" rx="8" fill="#fff" stroke="#8a2b3d"/>
+    <text x="290" y="126" text-anchor="middle" font-weight="600" font-size="10">② wider_radius</text>
+    <text x="290" y="142" text-anchor="middle">radius 25 km</text>
+    <text x="290" y="156" text-anchor="middle">budget kept</text>
+    <rect x="400" y="108" width="170" height="64" rx="8" fill="#fff" stroke="#8a2b3d"/>
+    <text x="485" y="126" text-anchor="middle" font-weight="600" font-size="10">③ no_budget</text>
+    <text x="485" y="142" text-anchor="middle">radius 25 km, budget dropped</text>
+    <text x="485" y="156" text-anchor="middle" fill="#5d5a63">(skipped if no budget)</text>
+    <rect x="595" y="108" width="175" height="64" rx="8" fill="#fff" stroke="#8a2b3d"/>
+    <text x="682" y="126" text-anchor="middle" font-weight="600" font-size="10">④ no_radius</text>
+    <text x="682" y="142" text-anchor="middle">anywhere (1000 km)</text>
+    <text x="682" y="156" text-anchor="middle">accept any results</text>
+  </g>
+  <g stroke="#8a2b3d" stroke-width="1.2" fill="none">
+    <path d="M180 140 L203 140" marker-end="url(#a6)"/><path d="M375 140 L398 140" marker-end="url(#a6)"/><path d="M570 140 L593 140" marker-end="url(#a6)"/>
+  </g>
+  <g font-size="8.4" fill="#8a2b3d" text-anchor="middle"><text x="192" y="156">no</text><text x="192" y="166">hit</text><text x="387" y="156">no</text><text x="387" y="166">hit</text><text x="582" y="156">no</text><text x="582" y="166">hit</text></g>
+  <text x="10" y="192" font-size="9.2" fill="#1c1b1f">“Hit” = at least one result with similarity ≥ MATCH_FLOOR (0.68). Size and gender are never relaxed at any step.</text>
+  <g stroke="#1f6560" stroke-width="1.2" fill="none" stroke-dasharray="3 3">
+    <path d="M95 172 L95 212" marker-end="url(#a6)"/><path d="M290 172 L290 212" marker-end="url(#a6)"/>
+    <path d="M485 172 L485 212" marker-end="url(#a6)"/><path d="M682 172 L682 212" marker-end="url(#a6)"/>
+  </g>
+  <g font-size="9.3">
+    <rect x="10" y="214" width="760" height="30" rx="8" fill="#e3f0ee" stroke="#1f6560"/>
+    <text x="390" y="233" text-anchor="middle"><tspan font-weight="600">relaxedMessage(step)</tspan> → null for strict, otherwise one sentence saying exactly what was relaxed</text>
+    <rect x="10" y="256" width="370" height="60" rx="8" fill="#fbf1dc" stroke="#9a6b12"/>
+    <text x="195" y="275" text-anchor="middle" font-weight="600">reasons ≠ false (PRD default)</text>
+    <text x="195" y="291" text-anchor="middle">explainMatches(top 6): one batched LLM call, 6 s timeout</text>
+    <text x="195" y="305" text-anchor="middle">→ { parsed, relaxed, results[ ...reason ] }</text>
+    <rect x="400" y="256" width="370" height="60" rx="8" fill="#f5e7ea" stroke="#8a2b3d"/>
+    <text x="585" y="275" text-anchor="middle" font-weight="600">reasons: false (what the UI sends)</text>
+    <text x="585" y="291" text-anchor="middle">results return at once with reason: null, then the UI</text>
+    <text x="585" y="305" text-anchor="middle">calls POST /api/search/reasons { query, ids ≤ 6 }</text>
+  </g>
+</svg>
+<figcaption><b>Figure 5.</b> The search pipeline. Every response also carries a <code>Server-Timing</code> header with
+  the duration of each stage.</figcaption>
+</figure>
+
+<h3><span class="num">6.1</span>Parse the sentence into filters</h3>
+<p><code>parseQuery()</code> sends the raw text to the text LLM with <code>PARSER_SYSTEM_PROMPT</code> and a strict JSON
+  schema. It must return exactly five keys, using <code>null</code> for anything not clearly stated (“never guess”):</p>
+<pre><code>{ <span class="s">"occasion"</span>: <span class="s">"sangeet_mehendi"</span>, <span class="s">"size"</span>: <span class="s">"M"</span>, <span class="s">"max_price"</span>: 800, <span class="s">"gender"</span>: null,
+  <span class="s">"style_query"</span>: <span class="s">"festive, colourful outfit for a sangeet, comfortable to dance in"</span> }</code></pre>
+<p>The prompt maps slang to vocabulary (“mehendi” → <code>sangeet_mehendi</code>, “rave/techno/EDM” →
+  <code>club_night</code>, “1k” → 1000) and sets <code>gender</code> only when the message clearly says who it is for.
+  <code>style_query</code> is the request rewritten as a description of the ideal outfit, with size and price removed. The
+  result is validated by <code>parsedQuerySchema</code> with one retry. If the parser still fails, search
+  <b>degrades gracefully</b>: all filters become <code>null</code> and <code>style_query</code> is the raw text.</p>
+
+<h3><span class="num">6.2</span>Merge with the UI chips</h3>
+<p><code>mergeFilters()</code>: explicit <code>size</code> and <code>max_price</code> from the request (the UI’s chips) win
+  over the parser; <code>gender</code> always comes from the parser; the <code>area</code> always comes from the header
+  selector. The <code>parsed</code> object returned to the client reflects the merged values.</p>
+
+<h3><span class="num">6.3</span>Embed the intent</h3>
+<p><code>queryEmbeddingText()</code> appends the occasion label to the style query, mirroring how listings are embedded:
+  <code>"festive … to dance in. occasion: Sangeet / Mehendi"</code>. It is embedded with
+  <code>gemini-embedding-001</code>, <code>taskType: RETRIEVAL_QUERY</code>, 768 dimensions. The same
+  <code>embed()</code> helper serves upload and search and rejects any vector that is not exactly 768-d, so dimensions
+  cannot drift. Note that <b>occasion is a ranking signal, not a filter</b>.</p>
+
+<h3><span class="num">6.4</span>Filter and rank in Postgres</h3>
+<pre><code><span class="k">select</span> …, st_distance(l.location, st_makepoint(q_lng, q_lat)::geography) / 1000 <span class="k">as</span> distance_km,
+       1 - (l.embedding &lt;=&gt; q_emb) <span class="k">as</span> similarity
+<span class="k">from</span> listings l
+<span class="k">where</span> (q_size      <span class="k">is null or</span> l.size = q_size <span class="k">or</span> l.size = <span class="s">'FREE'</span>)
+  <span class="k">and</span> (q_max_price <span class="k">is null or</span> l.price_per_day &lt;= q_max_price)
+  <span class="k">and</span> (q_gender    <span class="k">is null or</span> l.gender <span class="k">in</span> (q_gender, <span class="s">'unisex'</span>))
+  <span class="k">and</span> (q_lat       <span class="k">is null or</span> st_dwithin(l.location, st_makepoint(q_lng, q_lat)::geography, q_radius_km * 1000))
+<span class="k">order by</span> l.embedding &lt;=&gt; q_emb
+<span class="k">limit</span> k;   <span class="c">-- k = RESULT_LIMIT = 12</span></code></pre>
+<p><code>&lt;=&gt;</code> is pgvector’s cosine distance, so <code>similarity = 1 − distance</code>. Free-size pieces
+  match any size, unisex pieces match either gender. The embedding is passed as a JSON string
+  (<code>JSON.stringify(embedding)</code>), which PostgREST casts to <code>vector</code>.</p>
+
+<h3><span class="num">6.5</span>The fallback ladder and the match-quality floor</h3>
+<p>Vector search almost always returns <i>something</i>, so “zero results” alone would rarely trigger a fallback.
+  Instead a step only counts as a hit if at least one result is a genuinely good match:
+  <code>isGoodEnough()</code> requires a similarity ≥ <code>MATCH_FLOOR</code> (default <b>0.68</b>, overridable by env).
+  The last step accepts any non-empty result.</p>
+<div class="callout teal">
+  <span class="label">How 0.68 was chosen</span>
+  <p>Calibrated on <code>gemini-embedding-001</code> over 14 real queries: plausible top matches scored
+    <b>0.686–0.85</b>, poor ones <b>0.59–0.66</b>. The example that set the line: “wedding guest saree”, whose nearest
+    item was a beige dress at 0.653. The floor sits in the gap. If you change the embedding model, re-calibrate (and
+    re-embed every listing).</p>
+</div>
+<p><code>planAttempts()</code> builds the steps (Figure 5); steps that would repeat the previous query are skipped
+  (no budget step when there is no budget). Size and gender are never relaxed: a dress that does not fit is not a
+  match. The step that produced the results drives <code>relaxedMessage()</code>:</p>
+<table>
+  <thead><tr><th style="width:17%">Step used</th><th>Message (area Adyar, budget ₹800)</th></tr></thead>
+  <tbody>
+    <tr><td><code>strict</code></td><td><code>null</code> (nothing was relaxed)</td></tr>
+    <tr><td><code>wider_radius</code></td><td>No good match under ₹800 within 10 km of Adyar, so here are options up to 25 km away.</td></tr>
+    <tr><td><code>no_budget</code></td><td>No good match under ₹800 near Adyar, so here are options up to ₹1,200 within 25 km.</td></tr>
+    <tr><td><code>no_radius</code></td><td>No good match under ₹800 within 25 km of Adyar, so here are the closest matches across Chennai, up to ₹1,200.</td></tr>
+  </tbody>
+</table>
+<p class="small">“Up to ₹1,200” is the highest price among the returned results, formatted with <code>en-IN</code>
+  grouping. The wording says “no good match” rather than “nothing”, because the floor can relax a step that technically
+  had weak results. The last step uses a 1000 km radius rather than none, so <code>distance_km</code> stays populated.</p>
+
+<h3><span class="num">6.6</span>“Why it fits”: batched reasons, results first</h3>
+<p><code>explainMatches()</code> makes <b>one</b> LLM call for the top <code>REASON_COUNT = 6</code> results (never one
+  per card). The prompt asks for ≤ 12 words per item, specific to fabric, colour, silhouette or vibe; never mention
+  size, price, distance or availability; never assume the wearer’s gender; be honest when an item is a weak fit. The
+  server keeps only reasons whose <code>id</code> was in the request and trims each to 15 words
+  (<code>clampWords()</code>). If the call fails, results are returned with <code>reason: null</code>; a reasons
+  failure never fails a search.</p>
+<p>By default (the PRD contract) reasons are inline. The UI sends <code>"reasons": false</code> so the grid renders as
+  soon as matching is done (about 2 s), then calls <code>POST /api/search/reasons</code>:</p>
+<pre><code>POST /api/search/reasons   { <span class="s">"query"</span>: <span class="s">"…sangeet…"</span>, <span class="s">"ids"</span>: [<span class="s">"7f3c…"</span>, <span class="s">"a91d…"</span>] }   <span class="c">// 1–6 uuids</span>
+200 { <span class="s">"reasons"</span>: [ { <span class="s">"id"</span>: <span class="s">"7f3c…"</span>, <span class="s">"reason"</span>: <span class="s">"Bright mirror-work lehenga made for twirling at a sangeet"</span> } ] }</code></pre>
+
+<h3><span class="num">6.7</span>The response and Server-Timing</h3>
+<pre><code>200 OK
+server-timing: parse;dur=980, embed;dur=210, match;dur=140, total;dur=1335
+{
+  <span class="s">"parsed"</span>:  { <span class="s">"occasion"</span>: <span class="s">"sangeet_mehendi"</span>, <span class="s">"size"</span>: <span class="s">"M"</span>, <span class="s">"max_price"</span>: 800, <span class="s">"gender"</span>: null, <span class="s">"style_query"</span>: <span class="s">"…"</span> },
+  <span class="s">"relaxed"</span>: null,
+  <span class="s">"results"</span>: [ { <span class="s">"id"</span>: <span class="s">"7f3c…"</span>, <span class="s">"title"</span>: <span class="s">"…"</span>, <span class="s">"image_url"</span>: <span class="s">"…"</span>, <span class="s">"category"</span>: <span class="s">"lehenga"</span>,
+                 <span class="s">"occasions"</span>: […], <span class="s">"style_tags"</span>: […], <span class="s">"size"</span>: <span class="s">"M"</span>, <span class="s">"price_per_day"</span>: 700,
+                 <span class="s">"area"</span>: <span class="s">"Besant Nagar"</span>, <span class="s">"description"</span>: <span class="s">"…"</span>, <span class="s">"distance_km"</span>: 0.4,
+                 <span class="s">"similarity"</span>: 0.74, <span class="s">"reason"</span>: null } ]
+}</code></pre>
+<p>The <code>Timer</code> class in <code>api/_lib/search.ts</code> records <code>parse</code>, <code>embed</code>,
+  <code>match</code> and (when inline) <code>reasons</code> laps plus a <code>total</code>. Browser dev tools show these in
+  the Network → Timing panel, which is the fastest way to see where a slow search spent its time. (The durations above
+  are illustrative.)</p>
+</section>
+
+<!-- ============================ 7 ============================ -->
+<section id="s7">
+<h2><span class="num">7</span>Outfits: “Complete the look”</h2>
+<h3><span class="num">7.1</span>The controlled vocabulary</h3>
+<p><code>shared/vocab.ts</code> is the single source of truth for what the vision model may output, what the parser may
+  return, what zod accepts, and what the UI shows. Changing it means updating prompts automatically (they interpolate
+  the lists) and re-tagging old listings with <code>scripts/retag-listings.mjs</code>.</p>
+<table>
+  <thead><tr><th style="width:15%">List</th><th>Values</th></tr></thead>
+  <tbody>
+    <tr><td>Categories (20)</td><td><code>saree lehenga kurta_set salwar_suit gown dress sherwani suit blazer shirt skirt ethnic_jacket top hoodie jacket jeans trousers shorts co_ord_set other</code></td></tr>
+    <tr><td>Occasions (12)</td><td><code>wedding reception sangeet_mehendi festival party interview formal_event photoshoot college_event casual_outing club_night concert</code></td></tr>
+    <tr><td>Sizes</td><td><code>XS S M L XL XXL FREE</code></td></tr>
+    <tr><td>Genders</td><td><code>women men unisex</code> (the parser only ever returns <code>women</code>/<code>men</code>/<code>null</code>)</td></tr>
+    <tr><td>Constants</td><td><code>EMBEDDING_DIMENSIONS = 768</code>, <code>DEFAULT_RADIUS_KM = 10</code></td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">7.2</span>Slots and pairing rules</h3>
+<p>Every category has an outfit slot (<code>CATEGORY_SLOT</code>), and each slot lists what it pairs with, in priority
+  order (<code>PAIRS_WITH</code>). The first entry is what <i>completes</i> the piece; later entries are extras.</p>
+<table>
+  <thead><tr><th style="width:14%">Slot</th><th style="width:44%">Categories</th><th>Pairs with (priority order)</th></tr></thead>
+  <tbody>
+    <tr><td><code>one_piece</code></td><td>saree, lehenga, kurta_set, salwar_suit, gown, dress, sherwani, suit, co_ord_set</td><td>layer</td></tr>
+    <tr><td><code>top</code></td><td>shirt, top, hoodie</td><td>bottom, then layer</td></tr>
+    <tr><td><code>bottom</code></td><td>skirt, jeans, trousers, shorts</td><td>top, then layer</td></tr>
+    <tr><td><code>layer</code></td><td>blazer, jacket, ethnic_jacket</td><td>top, bottom, one_piece</td></tr>
+    <tr><td><code>other</code></td><td>other</td><td>nothing (empty result)</td></tr>
+  </tbody>
+</table>
+<p>One exception: <code>suit</code> and <code>sherwani</code> already include their own layer, so when the anchor is a layer
+  they are never suggested as the one-piece to wear under it (<code>categoriesInSlot()</code> filters them out).</p>
+
+<h3><span class="num">7.3</span>The endpoint and the RPC</h3>
+<p><code>GET /api/listings/:id/complete</code> loads the anchor’s category, derives its slot and pairing slots, and calls
+  the RPC once per pairing slot in parallel: <code>k = 4</code> for the completing slot, <code>k = 2</code> for extras. Results
+  are concatenated in priority order, tagged with their <code>slot</code>, and capped at 8.</p>
+<pre><code><span class="k">select</span> l.…, st_distance(l.location, a.location) / 1000, 1 - (l.embedding &lt;=&gt; a.embedding)
+<span class="k">from</span> listings a <span class="k">join</span> listings l <span class="k">on</span> l.id &lt;&gt; a.id
+<span class="k">where</span> a.id = anchor
+  <span class="k">and</span> l.category = <span class="k">any</span>(pair_categories)                          <span class="c">-- complementary slot</span>
+  <span class="k">and</span> (a.gender = <span class="s">'unisex'</span> <span class="k">or</span> l.gender <span class="k">in</span> (a.gender, <span class="s">'unisex'</span>))  <span class="c">-- gender-compatible</span>
+  <span class="k">and</span> l.occasions &amp;&amp; a.occasions                                <span class="c">-- share ≥ 1 occasion</span>
+<span class="k">order by</span> (l.embedding &lt;=&gt; a.embedding)                           <span class="c">-- style distance</span>
+       + least(st_distance(l.location, a.location) / 1000, 30) / 300  <span class="c">-- nearness: 30 km costs 0.1</span>
+<span class="k">limit</span> k;</code></pre>
+<p>The ranking is style first with a gentle nearness bonus: distance adds up to 0.1 to the cosine distance, capped at
+  30 km, so a slightly less similar piece next door can beat a perfect one across town.</p>
+<pre><code>GET /api/listings/9c1e…/complete        <span class="c">// anchor is a black mesh top</span>
+200 { <span class="s">"slot"</span>: <span class="s">"top"</span>, <span class="s">"pairs_with"</span>: [<span class="s">"bottom"</span>, <span class="s">"layer"</span>],
+      <span class="s">"results"</span>: [ { <span class="s">"id"</span>: <span class="s">"…"</span>, <span class="s">"title"</span>: <span class="s">"Black leather cargo trousers"</span>, <span class="s">"slot"</span>: <span class="s">"bottom"</span>, <span class="s">"similarity"</span>: 0.81,
+                    <span class="s">"distance_km"</span>: 3.2, … }, … up to 4 bottoms, then up to 2 layers ] }</code></pre>
+<p class="small">The listing page shows these results as a “Complete the look” card row.</p>
+</section>
+
+<!-- ============================ 8 ============================ -->
+<section id="s8">
+<h2><span class="num">8</span>Bookings and payments</h2>
+<p>Booking rules live in <code>shared/booking.ts</code> so the UI can show a live quote and the server can
+  <b>recompute</b> it. The server never trusts a price, advance or day count sent by the browser; the request carries
+  only the listing, the dates, a contact and a payment method.</p>
+
+<h3><span class="num">8.1</span>Quote maths</h3>
+<pre><code>days    = daysBetween(start, end) + 1                 <span class="c">// pickup AND return day both count</span>
+total   = days × price_per_day
+advance = min(total, max(MIN_ADVANCE = 50, round(total × ADVANCE_RATE = 0.2)))
+due_at_pickup = total − advance</code></pre>
+<table>
+  <thead><tr><th>Worked example</th><th>days</th><th>total</th><th>advance</th><th>due at pickup</th></tr></thead>
+  <tbody>
+    <tr><td>₹400/day, pick up 10 Oct, return 12 Oct</td><td>3</td><td>₹1,200</td><td>20% = ₹240</td><td>₹960</td></tr>
+    <tr><td>₹150/day, same day (10 → 10 Oct)</td><td>1</td><td>₹150</td><td>20% = ₹30 → minimum ₹50</td><td>₹100</td></tr>
+    <tr><td>₹40/day, same day</td><td>1</td><td>₹40</td><td>min(₹40, ₹50) = ₹40</td><td>₹0</td></tr>
+  </tbody>
+</table>
+<p class="small">These three cases are exactly the assertions in <code>tests/bookings.test.ts</code>.</p>
+
+<h3><span class="num">8.2</span>Date rules, in India time</h3>
+<p>Dates are plain <code>YYYY-MM-DD</code> calendar days with no time of day, so there is no timezone drift. “Today” is
+  computed in <code>Asia/Kolkata</code> by <code>todayInIndia()</code> (<code>Intl.DateTimeFormat('en-CA', {timeZone})</code>),
+  so a request at 20:00 UTC on 29 Sep counts as 30 Sep. Day arithmetic uses <code>Date.UTC</code> to avoid DST effects.
+  <code>validateDates()</code> returns a human-readable problem or <code>null</code>:</p>
+<table>
+  <thead><tr><th style="width:44%">Rule</th><th>Message</th></tr></thead>
+  <tbody>
+    <tr><td>Both dates match <code>YYYY-MM-DD</code></td><td>Pick a pickup and a return date.</td></tr>
+    <tr><td>Date exists (no 31 Nov; round-trip through <code>addDays(d, 0)</code>)</td><td>That date doesn’t exist.</td></tr>
+    <tr><td>Pickup ≥ today (IST)</td><td>Pickup can’t be in the past.</td></tr>
+    <tr><td>Pickup ≤ today + 90 days (<code>MAX_DAYS_AHEAD</code>)</td><td>You can book up to 90 days ahead.</td></tr>
+    <tr><td>Return ≥ pickup</td><td>Return must be on or after pickup.</td></tr>
+    <tr><td>At most 14 days inclusive (<code>MAX_BOOKING_DAYS</code>)</td><td>Bookings can be at most 14 days.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">8.3</span>The booking request, end to end</h3>
+<figure>
+<svg viewBox="0 0 780 330" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker></defs>
+  <g font-size="10" font-weight="600" text-anchor="middle">
+    <rect x="20" y="8" width="130" height="28" rx="6" fill="#f6f3ee" stroke="#1c1b1f"/><text x="85" y="27">Borrower browser</text>
+    <rect x="215" y="8" width="160" height="28" rx="6" fill="#f5e7ea" stroke="#8a2b3d"/><text x="295" y="27">POST /api/bookings</text>
+    <rect x="430" y="8" width="130" height="28" rx="6" fill="#fbf1dc" stroke="#9a6b12"/><text x="495" y="27">payments.ts</text>
+    <rect x="620" y="8" width="145" height="28" rx="6" fill="#e3f0ee" stroke="#1f6560"/><text x="692" y="27">Postgres</text>
+  </g>
+  <g stroke="#c9c3bb" stroke-dasharray="3 3"><line x1="85" y1="36" x2="85" y2="322"/><line x1="295" y1="36" x2="295" y2="322"/><line x1="495" y1="36" x2="495" y2="322"/><line x1="692" y1="36" x2="692" y2="322"/></g>
+  <g font-size="9" fill="#1c1b1f">
+    <path d="M85 56 L293 56" stroke="#5d5a63" marker-end="url(#a8)"/>
+    <text x="92" y="51">{ listing_id, start_date, end_date, borrower_contact, payment_method }</text>
+    <rect x="300" y="64" width="190" height="56" rx="4" fill="#fff" stroke="#e3c4cb"/>
+    <text x="306" y="78">session user (401 if none) · zod schema</text>
+    <text x="306" y="92">validateDates() → 400 with message</text>
+    <text x="306" y="106">load listing → 404 · own listing → 400</text>
+    <text x="306" y="117" font-size="8.4" fill="#5d5a63">quote(price_per_day, dates)</text>
+    <path d="M295 138 L493 138" stroke="#5d5a63" marker-end="url(#a8)"/>
+    <text x="302" y="133">chargeAdvance({ amount: advance, method })</text>
+    <path d="M495 156 L297 156" stroke="#5d5a63" stroke-dasharray="4 2" marker-end="url(#a8)"/>
+    <text x="330" y="170">{ ref: "MOCK-UPI-9F2C41A07B3E" }</text>
+    <path d="M295 190 L690 190" stroke="#5d5a63" marker-end="url(#a8)"/>
+    <text x="302" y="185">INSERT bookings (server-computed days, total, advance, payment_ref, borrower_id)</text>
+    <rect x="600" y="198" width="170" height="54" rx="4" fill="#fff" stroke="#9cc9c3"/>
+    <text x="606" y="212">EXCLUDE check (23P01?)</text>
+    <text x="606" y="226">trigger on_booking_created →</text>
+    <text x="606" y="240">INSERT notifications (owner)</text>
+    <text x="606" y="250" font-size="8" fill="#5d5a63">same transaction</text>
+    <path d="M692 268 L297 268" stroke="#5d5a63" stroke-dasharray="4 2" marker-end="url(#a8)"/>
+    <text x="360" y="263">row + listing(title, image, area, owner_name, owner_contact)</text>
+    <path d="M295 298 L87 298" stroke="#8a2b3d" stroke-width="1.4" marker-end="url(#a8)"/>
+    <text x="100" y="292" fill="#8a2b3d" font-weight="600">201 { booking } · or 409 if dates were just taken</text>
+  </g>
+</svg>
+<figcaption><b>Figure 6.</b> Booking sequence (<code>api/_routes/bookings/index.ts</code>). The owner’s notification is
+  written by the database, not by the route.</figcaption>
+</figure>
+
+<pre><code>201 Created
+{ <span class="s">"booking"</span>: { <span class="s">"id"</span>: <span class="s">"…"</span>, <span class="s">"listing_id"</span>: <span class="s">"…"</span>, <span class="s">"start_date"</span>: <span class="s">"2026-10-10"</span>, <span class="s">"end_date"</span>: <span class="s">"2026-10-12"</span>,
+    <span class="s">"days"</span>: 3, <span class="s">"price_per_day"</span>: 400, <span class="s">"total"</span>: 1200, <span class="s">"advance"</span>: 240, <span class="s">"status"</span>: <span class="s">"confirmed"</span>,
+    <span class="s">"payment_ref"</span>: <span class="s">"MOCK-UPI-…"</span>, <span class="s">"borrower_name"</span>: <span class="s">"Asha"</span>, <span class="s">"borrower_contact"</span>: <span class="s">"98400 00000"</span>,
+    <span class="s">"listing"</span>: { <span class="s">"title"</span>: <span class="s">"…"</span>, <span class="s">"image_url"</span>: <span class="s">"…"</span>, <span class="s">"area"</span>: <span class="s">"Adyar"</span>,
+                 <span class="s">"owner_name"</span>: <span class="s">"Priya"</span>, <span class="s">"owner_contact"</span>: <span class="s">"…"</span> } } }   <span class="c">// contact revealed on confirmation</span>
+
+409 Conflict
+{ <span class="s">"error"</span>: <span class="s">"Someone just booked those dates — please pick different ones."</span> }</code></pre>
+<p>The borrower’s name comes from their account (<code>users.name</code>), never from the request body. Related
+  read endpoints:</p>
+<ul>
+  <li><code>GET /api/listings/:id/availability</code> → <code>{"booked":[{"start_date","end_date"}]}</code>: upcoming
+    confirmed bookings (<code>end_date ≥ today in IST</code>) with no borrower details. Public; used to grey out the
+    calendar.</li>
+  <li><code>GET /api/bookings/mine</code> <span class="tag">auth</span> → <code>{"bookings":[…]}</code>: the signed-in
+    borrower’s bookings ordered by <code>start_date</code> (My Rentals).</li>
+</ul>
+
+<h3><span class="num">8.4</span>Mock payment, and how to make it real</h3>
+<p><code>api/_lib/payments.ts</code> exports one function. Today it validates the amount and returns a reference like
+  <code>MOCK-UPI-9F2C41A07B3E</code>; no money moves, and the UI labels it as a demo payment.</p>
+<pre><code><span class="k">export async function</span> chargeAdvance(input: { amount: number; method: <span class="s">'upi'</span> | <span class="s">'card'</span> }): Promise&lt;{ ref: string }&gt;</code></pre>
+<p>To go live, replace the body with a real provider, for example a Razorpay order created server-side plus
+  verification of the payment signature with the provider’s secret, and return the provider’s payment id as
+  <code>ref</code>. The rest of the flow does not change. One thing to design deliberately when you do: today the
+  charge happens <i>before</i> the insert, so a 409 after a real capture would need a refund or void. The usual fix is
+  to authorise first and capture only after the insert succeeds, or to insert a <code>pending</code> row first.</p>
+</section>
+
+<!-- ============================ 9 ============================ -->
+<section id="s9">
+<h2><span class="num">9</span>Accounts, sessions and Google sign-in</h2>
+<div class="callout accent">
+  <span class="label">New design</span>
+  <p>DRAPE no longer uses Supabase Auth for accounts or sessions (it only brokers Google sign-in, Section 9.7). Accounts are rows in <code>public.users</code>, passwords are hashed by the API
+    with Node’s <code>scrypt</code>, and sessions are opaque random tokens stored hashed in <code>public.sessions</code> and
+    carried in an httpOnly cookie. Listings, bookings and notifications reference <code>public.users</code>. The browser
+    never holds a readable token.</p>
+</div>
+
+<h3><span class="num">9.1</span>Tables (migrations <code>…0930000004_own_auth.sql</code>, <code>…0930000006_login_attempts.sql</code>)</h3>
+<pre><code><span class="k">create table</span> public.users (
+  id            uuid <span class="k">primary key default</span> gen_random_uuid(),
+  created_at    timestamptz <span class="k">not null default</span> now(),
+  email         extensions.citext <span class="k">not null unique check</span> (email ~ <span class="s">'…@…'</span>),
+  name          text <span class="k">not null check</span> (length(name) <span class="k">between</span> 1 <span class="k">and</span> 80),
+  password_hash text,          <span class="c">-- scrypt (or legacy bcrypt); null = Google-only</span>
+  google_sub    text <span class="k">unique</span>    <span class="c">-- Google's stable account id, once linked</span>
+);
+<span class="k">create table</span> public.login_attempts (   <span class="c">-- …0930000006_login_attempts.sql</span>
+  email        extensions.citext <span class="k">primary key</span>,  <span class="c">-- any email, registered or not</span>
+  failed       int <span class="k">not null default</span> 0,
+  locked_until timestamptz,
+  updated_at   timestamptz <span class="k">not null default</span> now()
+);
+<span class="k">create table</span> public.sessions (
+  token_hash text <span class="k">primary key</span>,  <span class="c">-- hex SHA-256 of the cookie token</span>
+  user_id    uuid <span class="k">not null references</span> public.users(id) <span class="k">on delete cascade</span>,
+  created_at timestamptz <span class="k">not null default</span> now(),
+  expires_at timestamptz <span class="k">not null</span>
+);  <span class="c">-- indexes: sessions_user_idx (user_id), sessions_expiry_idx (expires_at)</span></code></pre>
+<p>All three tables follow the house rule: RLS on, no policies, service role only. <code>login_attempts</code> has no foreign key on purpose: it counts attempts per <i>email address</i>, including addresses with no account. Migration <code>…0006</code> also dropped the earlier per-user <code>users.failed_logins</code> and <code>users.locked_until</code> columns. The <code>own_auth</code> migration copies existing
+  Supabase Auth accounts into <code>public.users</code> <b>with the same ids</b> and their bcrypt hashes
+  (<code>auth.users.encrypted_password</code>), re-points the <code>listings.owner_id</code>, <code>bookings.borrower_id</code> and
+  <code>notifications.user_id</code> foreign keys at <code>public.users</code>, and drops the Phase 7 <code>profiles</code> table and
+  its <code>on_auth_user_created</code> trigger. Keeping the ids means every existing listing, booking and notification
+  stays attached to the right person.</p>
+
+<h3><span class="num">9.2</span>Password hashing (<code>api/_lib/passwords.ts</code>)</h3>
+<ul>
+  <li><b>scrypt</b> (<code>node:crypto</code>) with a fresh random <b>16-byte salt</b> per password, parameters
+    <code>N=16384, r=8, p=1</code>, 64-byte key. The stored string is self-describing,
+    <code>scrypt$16384$8$1$&lt;salt b64&gt;$&lt;hash b64&gt;</code>, so the cost can be raised later: a hash made with a
+    different <code>N</code> is flagged <code>needsRehash</code> and upgraded at the next login.</li>
+  <li>Verification recomputes the hash with the stored parameters and compares with <code>crypto.timingSafeEqual</code>,
+    so comparison time does not leak how many bytes matched. Passwords must be 8–200 characters.</li>
+  <li><b>Migrated accounts.</b> Two teammates’ older accounts came from Supabase Auth with <b>bcrypt</b> hashes
+    (<code>$2a$/$2b$/$2y$</code>). <code>verifyPassword()</code> checks those with <code>bcryptjs</code> and returns
+    <code>needsRehash: true</code>; the login route then stores a fresh scrypt hash. After one login the account is
+    indistinguishable from any other.</li>
+</ul>
+
+<h3><span class="num">9.3</span>Sessions (<code>api/_lib/sessions.ts</code>)</h3>
+<ul>
+  <li>On sign-up or login, <code>createSession()</code> generates a <b>32-byte random token</b> (base64url), inserts
+    <code>token_hash = SHA-256(token)</code> with <code>expires_at = now + 30 days</code>, deletes that user’s already-expired
+    sessions, and returns the cookie:
+    <pre><code>Set-Cookie: drape_session=&lt;token&gt;; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax; Secure</code></pre>
+    <code>Secure</code> is omitted only for plain-<code>http</code> <code>localhost</code>/<code>127.0.0.1</code>, so local
+    development works.</li>
+  <li><b>Every request</b> that needs a user resolves it server-side: <code>sessionUserId()</code> reads the cookie,
+    hashes it, looks up the session and rejects it if <code>expires_at</code> has passed; <code>getUser()</code> in
+    <code>api/_lib/auth.ts</code> then loads <code>id, email, name</code> from <code>users</code>. <code>requireUser()</code> throws
+    <code>401 "Please sign in first."</code>. Handlers never accept a user id from the client.</li>
+  <li>Storing only the hash means a leaked database backup contains no usable session tokens.</li>
+  <li><b>Logout</b> (<code>POST /api/auth/logout</code>) deletes the session row and returns an expired cookie
+    (<code>Max-Age=0</code>), so the token is dead server-side even if a copy exists somewhere.</li>
+</ul>
+
+<h3><span class="num">9.4</span>Brute-force and enumeration protection (<code>api/_routes/auth/login.ts</code>)</h3>
+<ul>
+  <li><b>Lockout, per email address.</b> Each miss upserts <code>public.login_attempts</code> for that email and increments <code>failed</code>, whether or not an account exists. The 5th (<code>MAX_FAILED_LOGINS</code>)
+    sets <code>locked_until = now + 10 min</code> (<code>LOCK_MINUTES</code>) and resets the counter. The lock is checked first; while locked, login
+    returns <code>429 "Too many attempts for this email — try again in N min."</code>. A successful login deletes the email’s row.</li>
+  <li><b>No email enumeration.</b> An unknown email, and a Google-only account with no password, both run
+    <code>burnPasswordCheck()</code>, a full scrypt verify against a dummy hash, so the response time matches a wrong password,
+    and all three return the same <code>401 "Wrong email or password."</code>. Because the lockout is keyed by email rather
+    than by account, a <code>429</code> does not reveal whether an account exists either.</li>
+</ul>
+
+<h3><span class="num">9.5</span>CSRF defence</h3>
+<p>Because the session is a cookie, the API must make sure other sites cannot trigger state-changing requests with it.
+  Three layers work together:</p>
+<ol>
+  <li><b>SameSite=Lax</b> cookies are not sent on cross-site POSTs.</li>
+  <li><b>JSON-only POST bodies.</b> <code>readJson()</code> rejects any body whose <code>Content-Type</code> is not
+    <code>application/json</code> with <code>415</code>. An HTML form on another site cannot send that type without a CORS
+    preflight, which the API never grants.</li>
+  <li><b>Origin check</b> in the router itself: <code>crossSite()</code> in <code>api/router.ts</code> runs before route
+    matching. A non-GET request whose <code>Origin</code> host differs from the request host
+    (<code>x-forwarded-host</code> / <code>host</code>) gets <code>403 {"error":"cross_site_request"}</code>. Requests with no
+    <code>Origin</code> (server-side scripts) and GET/HEAD are unaffected.</li>
+</ol>
+
+<h3><span class="num">9.6</span>Endpoints</h3>
+<table>
+  <thead><tr><th style="width:30%">Endpoint</th><th>Body / behaviour</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /api/auth/signup</code></td><td><code>{ name, email, password }</code> (email lower-cased, password ≥ 8) →
+      <code>201 { user: { id, email, name } }</code> + session cookie. <code>409</code> if the email already has an account.</td></tr>
+    <tr><td><code>POST /api/auth/login</code></td><td><code>{ email, password }</code> → <code>200 { user }</code> + session cookie.
+      <code>401 "Wrong email or password."</code> for every miss (including unknown emails and Google-only accounts), <code>429</code> while that email is locked.</td></tr>
+    <tr><td><code>POST /api/auth/logout</code></td><td>Deletes the session row, clears the cookie → <code>{ ok: true }</code>.</td></tr>
+    <tr><td><code>GET /api/auth/providers</code></td><td><code>{ password: true, google: boolean }</code>. <code>google</code> is true only when
+      Supabase’s <code>/auth/v1/settings</code> reports the Google provider enabled (cached 5 minutes); the UI hides the button otherwise.</td></tr>
+    <tr><td><code>GET /api/auth/google</code></td><td>Creates a PKCE verifier cookie and 302-redirects to Supabase Auth’s Google authorize URL
+      (or to <code>/?auth_error=google_unavailable</code>).</td></tr>
+    <tr><td><code>GET /api/auth/google/callback</code></td><td>Exchanges <code>?code=</code> with the verifier, links/creates the DRAPE user,
+      302 to <code>/?signed_in=google</code> with a session cookie (or <code>/?auth_error=google_failed|google_unverified</code>).</td></tr>
+    <tr><td><code>GET /api/me</code> <span class="tag">auth</span></td><td><code>{ user: {id, email, name}, stats: { listed, rentals, earned } }</code>. <code>earned</code> sums <code>total</code> of confirmed bookings of the user’s listings.</td></tr>
+  </tbody>
+</table>
+
+<figure>
+<svg viewBox="0 0 780 400" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker></defs>
+  <g font-size="10" font-weight="600" text-anchor="middle">
+    <rect x="20" y="8" width="130" height="28" rx="6" fill="#f6f3ee" stroke="#1c1b1f"/><text x="85" y="27">Browser</text>
+    <rect x="280" y="8" width="180" height="28" rx="6" fill="#f5e7ea" stroke="#8a2b3d"/><text x="370" y="27">POST /api/auth/login</text>
+    <rect x="570" y="8" width="200" height="28" rx="6" fill="#e3f0ee" stroke="#1f6560"/><text x="670" y="27">login_attempts · users · sessions</text>
+  </g>
+  <g stroke="#c9c3bb" stroke-dasharray="3 3"><line x1="85" y1="36" x2="85" y2="392"/><line x1="370" y1="36" x2="370" y2="392"/><line x1="682" y1="36" x2="682" y2="392"/></g>
+  <g font-size="9" fill="#1c1b1f">
+    <path d="M85 58 L368 58" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="92" y="52">JSON { email, password } · Content-Type: application/json</text>
+    <rect x="376" y="66" width="228" height="42" rx="4" fill="#fff" stroke="#e3c4cb"/>
+    <text x="382" y="79">router crossSite(): foreign Origin → 403</text>
+    <text x="382" y="91">readJson(): not JSON → 415</text>
+    <text x="382" y="103">zod validate (email lower-cased)</text>
+    <path d="M370 124 L680 124" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="378" y="119">select failed, locked_until from login_attempts where email = $1</text>
+    <text x="378" y="138" fill="#8a2b3d">locked (any email, registered or not) → 429 “try again in N min”</text>
+    <path d="M370 158 L680 158" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="378" y="153">select id, email, name, password_hash from users where email = $1</text>
+    <rect x="376" y="166" width="262" height="44" rx="4" fill="#fff" stroke="#e3c4cb"/>
+    <text x="382" y="179">has password → scrypt / bcrypt verify (timingSafeEqual)</text>
+    <text x="382" y="192">no user, or Google-only → dummy scrypt (same time)</text>
+    <text x="382" y="205">either way, a miss → the same 401 “Wrong email or password.”</text>
+    <path d="M370 230 L680 230" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="378" y="225" fill="#8a2b3d">miss: upsert login_attempts failed+1; 5th → locked_until = now+10 min</text>
+    <path d="M370 258 L680 258" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="378" y="253">hit: delete login_attempts row; bcrypt → store scrypt hash</text>
+    <path d="M370 286 L680 286" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="378" y="281">insert sessions (token_hash, user_id, now()+30d)</text>
+    <path d="M368 316 L87 316" stroke="#8a2b3d" stroke-width="1.4" marker-end="url(#a9)"/>
+    <text x="96" y="310" fill="#8a2b3d" font-weight="600">200 { user } + Set-Cookie drape_session (HttpOnly; Secure; Lax)</text>
+    <path d="M85 352 L368 352" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="92" y="346">later: GET /api/me · Cookie: drape_session=…</text>
+    <path d="M370 372 L680 372" stroke="#5d5a63" marker-end="url(#a9)"/>
+    <text x="378" y="367">sha256(cookie) → unexpired session → users row</text>
+  </g>
+</svg>
+<figcaption><b>Figure 7.</b> Email + password login. Registered, unregistered and Google-only emails follow the same path and
+  get the same responses; only a correct password differs. Below: how every later request resolves the user.</figcaption>
+</figure>
+
+<h3><span class="num">9.7</span>Google sign-in (Supabase Auth as a PKCE broker)</h3>
+<p>Google is a secondary option, and it is the <b>only</b> place Supabase Auth still appears. Supabase’s Google
+  provider runs the Google consent flow for us; DRAPE then takes the verified identity, links or creates a row in
+  <b>its own</b> <code>public.users</code> table, and starts <b>its own</b> <code>drape_session</code> cookie. The Supabase session
+  that comes back is discarded, so <code>auth.users</code> acts purely as a Google broker. Google’s client ID and secret
+  are configured in the Supabase dashboard, not in DRAPE’s environment.</p>
+
+<figure>
+<svg viewBox="0 0 780 440" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5d5a63"/></marker></defs>
+  <g font-size="10" font-weight="600" text-anchor="middle">
+    <rect x="14" y="8" width="120" height="28" rx="6" fill="#f6f3ee" stroke="#1c1b1f"/><text x="74" y="27">Browser</text>
+    <rect x="228" y="8" width="170" height="28" rx="6" fill="#f5e7ea" stroke="#8a2b3d"/><text x="313" y="27">DRAPE /api/auth/google…</text>
+    <rect x="486" y="8" width="140" height="28" rx="6" fill="#e3f0ee" stroke="#1f6560"/><text x="556" y="27">Supabase Auth</text>
+    <rect x="660" y="8" width="110" height="28" rx="6" fill="#e8edf7" stroke="#2f4f86"/><text x="715" y="27">Google</text>
+  </g>
+  <g stroke="#c9c3bb" stroke-dasharray="3 3"><line x1="74" y1="36" x2="74" y2="434"/><line x1="313" y1="36" x2="313" y2="434"/><line x1="556" y1="36" x2="556" y2="434"/><line x1="715" y1="36" x2="715" y2="434"/></g>
+  <g font-size="8.9" fill="#1c1b1f">
+    <path d="M74 56 L311 56" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="80" y="51">① GET /api/auth/google</text>
+    <rect x="318" y="62" width="232" height="30" rx="4" fill="#fff" stroke="#e3c4cb"/>
+    <text x="324" y="75">verifier = random 32 bytes (base64url)</text>
+    <text x="324" y="87">challenge = base64url(SHA-256(verifier))</text>
+    <path d="M311 112 L76 112" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="80" y="106">② 302 → SUPABASE_URL/auth/v1/authorize?provider=google</text>
+    <text x="80" y="125" font-size="8.3" class="mono">&amp;redirect_to=&lt;origin&gt;/api/auth/google/callback</text>
+    <text x="80" y="137" font-size="8.3" class="mono">&amp;code_challenge=…&amp;code_challenge_method=s256</text>
+    <text x="80" y="150" fill="#8a2b3d">+ Set-Cookie drape_oauth_verifier (HttpOnly, Path=/api/auth, 10 min)</text>
+    <path d="M74 172 L554 172" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="80" y="167">③ GET /auth/v1/authorize …</text>
+    <path d="M556 190 L713 190" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="562" y="185">④ Google consent flow</text>
+    <path d="M713 208 L558 208" stroke="#5d5a63" stroke-dasharray="4 2" marker-end="url(#a10)"/>
+    <text x="562" y="221">verified Google identity</text>
+    <path d="M554 238 L76 238" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="80" y="233">⑤ 302 → /api/auth/google/callback?code=…</text>
+    <path d="M74 262 L311 262" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="80" y="257">⑥ GET callback + verifier cookie</text>
+    <path d="M313 286 L554 286" stroke="#5d5a63" marker-end="url(#a10)"/>
+    <text x="318" y="281">⑦ POST /auth/v1/token?grant_type=pkce</text>
+    <text x="318" y="298" font-size="8.3">{ auth_code, code_verifier } (server-to-server)</text>
+    <path d="M554 314 L315 314" stroke="#5d5a63" stroke-dasharray="4 2" marker-end="url(#a10)"/>
+    <text x="322" y="327">⑧ user: email (must be confirmed), name, Google sub · session discarded</text>
+    <rect x="318" y="336" width="250" height="44" rx="4" fill="#fff" stroke="#e3c4cb"/>
+    <text x="324" y="349">⑨ public.users: find by google_sub</text>
+    <text x="324" y="362">   else by email → link google_sub</text>
+    <text x="324" y="375">   else create (no password) · start OUR session</text>
+    <path d="M311 408 L76 408" stroke="#8a2b3d" stroke-width="1.4" marker-end="url(#a10)"/>
+    <text x="80" y="402" fill="#8a2b3d" font-weight="600">⑩ 302 → / + Set-Cookie drape_session</text>
+    <text x="80" y="424" fill="#5d5a63">(verifier cookie cleared)</text>
+  </g>
+</svg>
+<figcaption><b>Figure 8.</b> Google sign-in with PKCE. Only the browser that started the flow holds the verifier cookie,
+  and the code is useless without the verifier, so a code intercepted or injected from elsewhere cannot be redeemed.
+  This cookie replaces a separate OAuth <code>state</code> cookie.</figcaption>
+</figure>
+
+<h4>Why PKCE, and what it protects</h4>
+<ul>
+  <li><b>Binding to the browser.</b> <code>drape_oauth_verifier</code> is httpOnly, scoped to <code>Path=/api/auth</code>, and
+    lives 10 minutes. The token exchange at step ⑦ only succeeds with the verifier whose SHA-256 matches the challenge sent
+    at step ②, so the callback is tied to the browser that started it (login-CSRF and code-injection protection).</li>
+  <li><b>No tokens in the browser.</b> The code exchange is server-to-server; the Supabase access/refresh tokens are read
+    once for the user’s identity and then thrown away.</li>
+  <li><b>Verified identities only.</b> <code>exchangeCode()</code> in <code>api/_lib/google.ts</code> posts
+    <code>{ auth_code, code_verifier }</code> with the service-role <code>apikey</code>, requires a <code>google</code> identity and a
+    confirmed email (<code>email_confirmed_at</code>), else the callback redirects to <code>/?auth_error=google_unverified</code>.</li>
+  <li><b>Linking.</b> The user is matched by <code>google_sub</code> (the Google identity’s <code>sub</code>) first, then by email, in
+    which case <code>google_sub</code> is attached to the existing row; otherwise a new user without a password is created.
+    Such an account can only sign in with Google; a password login for it gets the generic <code>401</code>.</li>
+</ul>
+
+<h4>Configuration (Supabase dashboard, not env vars)</h4>
+<ul>
+  <li><b>Authentication → Providers → Google</b>: client ID and secret from Google Cloud, with the Google-side
+    authorised redirect URI <code>https://&lt;project&gt;.supabase.co/auth/v1/callback</code>.</li>
+  <li><b>Authentication → URL Configuration → Redirect URLs</b>: DRAPE’s <code>/api/auth/google/callback</code> on
+    production and on localhost, so Supabase will redirect back to it.</li>
+  <li><code>GET /api/auth/providers</code> returns <code>google: true</code> only when Supabase’s public auth settings report
+    the Google provider as enabled; otherwise the UI hides the button.</li>
+</ul>
+</section>
+
+<!-- ============================ 10 ============================ -->
+<section id="s10">
+<h2><span class="num">10</span>Notifications</h2>
+<p>Owners learn about bookings through the bell in the header. The design goal: a booking can never exist without its
+  notification. That is why the notification is written by a <b>trigger</b>, inside the same transaction as the booking
+  insert, rather than by a second API call that could fail halfway.</p>
+<pre><code><span class="k">create or replace function</span> public.notify_owner_of_booking()
+<span class="k">returns trigger language</span> plpgsql <span class="k">security definer set</span> search_path = <span class="s">''</span> <span class="k">as</span> $$
+<span class="k">declare</span> owner uuid;
+<span class="k">begin</span>
+  <span class="k">select</span> owner_id <span class="k">into</span> owner <span class="k">from</span> public.listings <span class="k">where</span> id = new.listing_id;
+  <span class="k">if</span> owner <span class="k">is not null and</span> new.status = <span class="s">'confirmed'</span> <span class="k">and</span> owner <span class="k">is distinct from</span> new.borrower_id <span class="k">then</span>
+    <span class="k">insert into</span> public.notifications (user_id, type, booking_id) <span class="k">values</span> (owner, <span class="s">'booking_received'</span>, new.id);
+  <span class="k">end if</span>;
+  <span class="k">return</span> new;
+<span class="k">end</span> $$;
+<span class="k">create trigger</span> on_booking_created <span class="k">after insert on</span> public.bookings <span class="k">for each row execute function</span> public.notify_owner_of_booking();</code></pre>
+<p>No notification is created for unowned (seed) listings, for non-confirmed rows, or when an owner books their own
+  piece (the API also blocks that with a 400). If the insert fails, for example on the no-overlap constraint, the
+  notification is rolled back with it.</p>
+
+<h3><span class="num">10.1</span>Reading and clearing</h3>
+<pre><code>GET /api/notifications                         <span class="c">// signed in; newest 30</span>
+200 { <span class="s">"notifications"</span>: [ { <span class="s">"id"</span>, <span class="s">"created_at"</span>, <span class="s">"read_at"</span>: null, <span class="s">"type"</span>: <span class="s">"booking_received"</span>,
+        <span class="s">"booking"</span>: { <span class="s">"id"</span>, <span class="s">"start_date"</span>, <span class="s">"end_date"</span>, <span class="s">"days"</span>, <span class="s">"total"</span>, <span class="s">"advance"</span>, <span class="s">"status"</span>,
+                     <span class="s">"borrower_name"</span>, <span class="s">"borrower_contact"</span>,
+                     <span class="s">"listing"</span>: { <span class="s">"id"</span>, <span class="s">"title"</span>, <span class="s">"image_url"</span>, <span class="s">"area"</span> } } } ],
+      <span class="s">"unread"</span>: 1 }
+
+POST /api/notifications/read   { <span class="s">"ids"</span>: [<span class="s">"…"</span>] }   <span class="c">// ids optional (max 100); omit to mark all as read</span>
+200 { <span class="s">"ok"</span>: true }</code></pre>
+<p>The query is always scoped by <code>user_id</code> = the session user, and the update only touches that user’s
+  unread rows (<code>read_at is null</code>), so one user cannot mark or read another’s notifications.</p>
+
+<h3><span class="num">10.2</span>Delivery: polling</h3>
+<p>There is no websocket or push. While signed in, <code>src/App.tsx</code> calls <code>GET /api/notifications</code>
+  immediately, then every <b>30 seconds</b>, and whenever the tab regains focus. Worst-case latency is therefore about
+  30 s, which is fine for “someone booked your lehenga”. Moving to Supabase Realtime or web push later would not change
+  the trigger or the table.</p>
+</section>
+
+<!-- ============================ 11 ============================ -->
+<section id="s11">
+<h2><span class="num">11</span>AI providers and rate limits</h2>
+<table>
+  <thead><tr><th style="width:18%">Task</th><th style="width:25%">Provider · model</th><th style="width:14%">Timeout</th><th>Where / notes</th></tr></thead>
+  <tbody>
+    <tr><td>Photo → tags</td><td>Gemini <code>gemini-3.5-flash-lite</code> (<code>GEMINI_VISION_MODEL</code>)</td><td>20 s</td>
+      <td><code>vision.ts</code>. Minimal thinking measured about 3 s; the full flash model had multi-second variance (one 82 s outlier).</td></tr>
+    <tr><td>Embeddings</td><td>Gemini <code>gemini-embedding-001</code>, 768-d</td><td>10 s</td>
+      <td><code>gemini.ts embed()</code>. Locked: changing it means re-embedding every listing and re-calibrating the floor.</td></tr>
+    <tr><td>Query parser</td><td>OpenAI <code>gpt-5.4-mini</code> (<code>OPENAI_TEXT_MODEL</code>), reasoning off</td><td>5 s</td>
+      <td><code>text-llm.ts</code>. Measured about 0.9–1.2 s. Falls back to Gemini <code>GEMINI_TEXT_MODEL</code>.</td></tr>
+    <tr><td>“Why it fits”</td><td>same as parser</td><td>6 s</td><td>One batched call for up to 6 results.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">11.1</span>Why OpenAI handles search text</h3>
+<p>The Gemini free tier allows <b>15 requests per minute per model</b>. Uploads need one vision call and one embedding;
+  each search needs an embedding plus two text calls (parser and reasons). If search text also used Gemini, a handful
+  of searches in one minute could block uploads, and vice versa. So the search-time text calls go to OpenAI, which has
+  separate and much higher limits, and Gemini is reserved for vision and embeddings.</p>
+<p><code>textJson()</code> tries OpenAI (Chat Completions, <code>response_format: json_schema</code> with
+  <code>strict: true</code>) when <code>OPENAI_API_KEY</code> is set. If the key is missing, or OpenAI errors or times out,
+  it logs a warning and calls Gemini with the equivalent OpenAPI-subset schema. Each prompt therefore carries two
+  schemas describing the same shape (<code>PARSER_JSON_SCHEMA</code> / <code>PARSER_GEMINI_SCHEMA</code>, and likewise for
+  reasons).</p>
+
+<h3><span class="num">11.2</span>Failure behaviour, by call</h3>
+<table>
+  <thead><tr><th style="width:18%">Call</th><th>If it fails…</th></tr></thead>
+  <tbody>
+    <tr><td>Vision</td><td>One retry (not for 429). Then 502 <code>analysis_failed</code> with the stored photo → manual tagging.</td></tr>
+    <tr><td>Embedding</td><td>No fallback: publishing or searching cannot proceed without a vector. A 429 surfaces as <code>rate_limited</code>; other errors as 502.</td></tr>
+    <tr><td>Parser</td><td>OpenAI → Gemini, with one retry around the whole step. Then degrade to raw-text semantic search.</td></tr>
+    <tr><td>Reasons</td><td>OpenAI → Gemini. Then results without reasons.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">11.3</span>429 handling</h3>
+<p>When Gemini returns HTTP 429, <code>call()</code> in <code>gemini.ts</code> reads the “retry in N s” hint from the
+  error message (default 30 s) and throws <code>RateLimitError(N)</code>. <code>withOneRetry()</code> deliberately does not
+  retry it. <code>route()</code> turns it into:</p>
+<pre><code>HTTP/1.1 429 Too Many Requests
+retry-after: 17
+{ <span class="s">"error"</span>: <span class="s">"rate_limited"</span>, <span class="s">"message"</span>: <span class="s">"AI is busy — try again in 17s"</span>, <span class="s">"retry_after"</span>: 17 }</code></pre>
+<p>The UI shows “try again in N seconds”. The seed and retag scripts read <code>retry_after</code>, sleep, and retry
+  (up to 5–6 times), which is how 79 listings were seeded on the free tier.</p>
+</section>
+
+<!-- ============================ 12 ============================ -->
+<section id="s12">
+<h2><span class="num">12</span>Security summary</h2>
+<table>
+  <thead><tr><th style="width:24%">Concern</th><th>Defence (and where)</th></tr></thead>
+  <tbody>
+    <tr><td>Secrets</td><td>All keys are read from <code>process.env</code> inside <code>/api</code> only, and never prefixed
+      with <code>VITE_</code> (which would bundle them into the browser). <code>requireEnv()</code> fails closed with a 500 if one
+      is missing. <code>GET /api/health</code> reports only booleans.</td></tr>
+    <tr><td>Direct database access</td><td>RLS on with no policies on every table; RPC execute revoked from
+      <code>public/anon/authenticated</code>. Only the service-role client in <code>api/_lib/supabase.ts</code> can read or write.</td></tr>
+    <tr><td>Private fields</td><td><code>PUBLIC_LISTING_COLUMNS</code> excludes <code>owner_contact</code>,
+      <code>embedding</code> and <code>location</code>. Contact comes only from <code>/api/listings/:id/contact</code> or a booking
+      confirmation. Availability returns dates only. A test asserts the list endpoint never selects
+      <code>owner_contact</code>.</td></tr>
+    <tr><td>Identity</td><td>The user is always resolved server-side from the <code>drape_session</code> cookie. User ids,
+      borrower names, prices and advances in request bodies are never trusted.</td></tr>
+    <tr><td>Passwords</td><td>scrypt (N=16384, r=8, p=1) with per-password 16-byte salt; minimum 8 characters; per-email lockout in <code>login_attempts</code> (5 misses → 10 min) that treats unknown emails the same; <code>timingSafeEqual</code>; bcrypt upgraded on login;
+      5-strike 10-minute lockout; dummy hash for unknown emails.</td></tr>
+    <tr><td>Session tokens</td><td>32 random bytes; only SHA-256 stored; 30-day expiry; cookie <code>HttpOnly</code>
+      (no JavaScript access, so XSS cannot steal it), <code>Secure</code>, <code>SameSite=Lax</code>; logout deletes the row.</td></tr>
+    <tr><td>CSRF</td><td>SameSite=Lax + JSON-only POST bodies (<code>415</code> otherwise) + router-level <code>Origin</code> check on every non-GET request (<code>403 cross_site_request</code>). Google
+      sign-in uses PKCE: the verifier sits in a 10-minute httpOnly cookie (<code>drape_oauth_verifier</code>, <code>Path=/api/auth</code>).</td></tr>
+    <tr><td>Admin operations</td><td><code>x-admin-key</code> header compared to <code>SUPABASE_SERVICE_ROLE_KEY</code> with
+      <code>timingSafeEqual</code> (<code>api/_lib/admin.ts</code>). Requests without the header never touch the key. Used only by
+      scripts: <code>POST /api/admin/retag</code>, <code>POST /api/listings/analyze</code> (seed and readiness scripts) and owner-less seeding via <code>POST /api/listings</code>.</td></tr>
+    <tr><td>Uploads</td><td>Signed-in users (or the admin key) only; 4 MB cap; type from magic bytes, not the client’s MIME; random server-chosen object names;
+      bucket allows only image types, 8 MB max.</td></tr>
+    <tr><td>Image URLs</td><td><code>isOwnImageUrl()</code>: listings may only reference this project’s
+      <code>listings</code> bucket, and never a path containing <code>..</code>. Prevents hot-linking arbitrary or hostile URLs.</td></tr>
+    <tr><td>Input validation</td><td>zod on every body and query (<code>shared/contracts.ts</code>,
+      <code>shared/booking-schema.ts</code>); uuids validated before any DB call; LLM output validated against the same
+      vocabulary.</td></tr>
+    <tr><td>Integrity under races</td><td>Exclusion constraint for bookings; notification in the same transaction via
+      trigger; <code>security definer</code> functions pin <code>search_path = ''</code>.</td></tr>
+    <tr><td>Browser hardening</td><td>CSP, <code>X-Frame-Options: DENY</code>, <code>nosniff</code>, a strict Referrer-Policy and a Permissions-Policy on every response (<code>vercel.json</code>, Section 13.4). The CSP’s <code>connect-src 'self'</code> means the page can only call its own <code>/api</code>.</td></tr>
+    <tr><td>Caching</td><td>Only public, non-personal reads send <code>public, s-maxage</code>; anything tied to a user, a session or today’s date stays <code>no-store</code>, so the CDN never serves one person’s data to another.</td></tr>
+    <tr><td>Error leakage</td><td><code>route()</code> returns messages for expected errors only; unexpected errors are
+      logged and returned as <code>internal_error</code>.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============================ 13 ============================ -->
+<section id="s13">
+<h2><span class="num">13</span>Operations</h2>
+<h3><span class="num">13.1</span>Environment variables (names only)</h3>
+<p>Set them in <code>.env.local</code> for <code>npm run dev</code> (template: <code>.env.example</code>) and in Vercel →
+  Project → Settings → Environment Variables for deployments. All are server-side.</p>
+<table>
+  <thead><tr><th style="width:30%">Variable</th><th style="width:12%">Required</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>SUPABASE_URL</code></td><td>yes</td><td>Project URL; also the prefix for the image URL allow-list.</td></tr>
+    <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>yes</td><td>Server database/storage access; also the admin key for scripts.</td></tr>
+    <tr><td><code>GEMINI_API_KEY</code></td><td>yes</td><td>Vision and embeddings (and text fallback).</td></tr>
+    <tr><td><code>OPENAI_API_KEY</code></td><td>recommended</td><td>Search parser and reasons. Without it, search uses Gemini and shares its quota.</td></tr>
+        <tr><td><code>GEMINI_VISION_MODEL</code>, <code>GEMINI_TEXT_MODEL</code>, <code>OPENAI_TEXT_MODEL</code></td><td>optional</td><td>Model overrides.</td></tr>
+    <tr><td><code>MATCH_FLOOR</code></td><td>optional</td><td>Search quality floor (default 0.68).</td></tr>
+  </tbody>
+</table>
+<p class="small">Google sign-in needs no DRAPE env vars: its client ID and secret live in the Supabase dashboard, and the
+  API reaches Supabase Auth through <code>SUPABASE_URL</code>. The Supabase Auth-era browser variables
+  (<code>VITE_SUPABASE_URL</code>, <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>) are not needed by the new session design.</p>
+
+<h3><span class="num">13.2</span>Scripts</h3>
+<table>
+  <thead><tr><th style="width:32%">Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>node --env-file=.env.local scripts/seed-listings.mjs &lt;manifest.json&gt; [--base URL] [--dry-run]</code></td>
+      <td>Seeds through the <b>real</b> pipeline with the admin key: analyze each photo, apply optional tag <code>overrides</code> (the human review
+        step), then publish with the admin key (no owner). Waits out 429s using <code>retry_after</code>.</td></tr>
+    <tr><td><code>node --env-file=.env.local scripts/retag-listings.mjs [--base URL] [--only cat1,cat2] [--dry-run]</code></td>
+      <td>After a vocabulary change: calls <code>POST /api/admin/retag {id}</code> once per listing (one per request keeps each
+        call inside the function time limit). Re-runs vision on the stored photo and re-embeds; keeps owner, size, price,
+        area and photo. Prints before → after category.</td></tr>
+    <tr><td><code>node --env-file=.env.local scripts/verify-prd.mjs [URL] [--area Adyar]</code></td>
+      <td>Demo-readiness check (run with <code>--env-file=.env.local</code> so it can send the admin key to analyze): runs the 9 PRD §11 success criteria against a deployment (upload &lt; 10 s, non-clothing
+        rejected, newest listing findable, search p50 &lt; 4 s, filters never violated unless announced, demo query top 3
+        plausible, fallback notice, ≥ 3 listings per occasion, ≥ 40 listings / 6 occasions / 5 areas). Exits non-zero on failure.</td></tr>
+    <tr><td><code>node --env-file=.env.local scripts/create-demo-owner.mjs [email] [password] ["Name"]</code></td>
+      <td>Creates or reuses the demo owner in <code>public.users</code> (default <code>owner@drape.demo</code>, generated password
+        printed once, stored as the same <code>scrypt$…</code> format the API writes) and assigns it every listing with no owner, so bookings on seeded pieces notify someone you can sign in as.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">13.3</span>Tests</h3>
+<p><code>npm test</code> runs Vitest over <code>tests/</code>. External services are mocked (<code>tests/fake-db.ts</code>
+  stands in for supabase-js), so the suite runs offline.</p>
+<table>
+  <thead><tr><th style="width:26%">File</th><th>Covers</th></tr></thead>
+  <tbody>
+    <tr><td><code>api-plugin.test.ts</code></td><td>Router matching (static before <code>:id</code>), rewrite reconstruction keeps query + body, every route file registered, exactly one function, admin-key check.</td></tr>
+    <tr><td><code>auth.test.ts</code></td><td>scrypt hashing and random salts, bcrypt verify + upgrade, dummy-hash timing, cookie flags, token hashing, cross-site blocking, signup/login/lockout routes, PKCE challenge and missing-verifier callback, demo-owner hash format.</td></tr>
+    <tr><td><code>http.test.ts</code></td><td><code>route()</code> error mapping.</td></tr>
+    <tr><td><code>contracts.test.ts</code></td><td>Vision, listing and parser schemas accept PRD examples and reject off-vocabulary values.</td></tr>
+    <tr><td><code>upload-pipeline.test.ts</code></td><td>Magic-byte sniffing, own-bucket URLs, vision normalisation, embedding text excludes size/price, analyze outcomes (200/422/502/415), publish computes location (lng lat) and a 768-d embedding and ignores client-sent ones.</td></tr>
+    <tr><td><code>search.test.ts</code></td><td>Chip override, ladder order and skipping, size/gender never relaxed, match floor, relaxed messages, reasons clamping.</td></tr>
+    <tr><td><code>bookings.test.ts</code></td><td>Quote maths, IST “today”, date validation, overlap semantics, POST /api/bookings (server recompute, 401, own listing, 409, 404), account-scoped My Rentals and notifications.</td></tr>
+    <tr><td><code>listings-api.test.ts</code></td><td>Public column list, occasion filter and limit, 404s, contact only from the contact route.</td></tr>
+    <tr><td><code>outfits.test.ts</code>, <code>esm-imports.test.ts</code>, <code>ui-lib.test.ts</code></td><td>Slot rules; <code>.js</code> import suffixes for Vercel ESM; UI helpers.</td></tr>
+  </tbody>
+</table>
+
+<h3><span class="num">13.4</span>Deploy</h3>
+<ul>
+  <li><code>vercel deploy --prod</code>. <code>vercel.json</code> pins the function to <code>bom1</code> (Mumbai), next to the
+    database. <code>npm run build</code> type-checks (<code>tsc -b</code>) and builds the SPA.</li>
+  <li><b>Hobby plan: max 12 functions per deployment.</b> DRAPE deploys exactly one (<code>api/router.ts</code>); route
+    files live under <code>api/_routes/</code> where the underscore keeps Vercel from deploying them. Vercel also rejects
+    bodies over 4.5 MB, hence the 4 MB image cap.</li>
+  <li><b>Edge headers and caching</b> (<code>vercel.json</code> <code>headers</code>). Every response gets a
+    Content-Security-Policy (<code>default-src 'self'</code>; images only from self, <code>data:</code>/<code>blob:</code>,
+    <code>*.supabase.co</code> and Unsplash; fonts from Google Fonts; <code>connect-src 'self'</code>; <code>frame-ancestors 'none'</code>),
+    <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>,
+    <code>Referrer-Policy: strict-origin-when-cross-origin</code> and a <code>Permissions-Policy</code> that turns off camera,
+    microphone, geolocation and payment. Hashed build output under <code>/assets/</code> is cached for a year
+    (<code>immutable</code>) and the hero image for a week. Public API reads are cached at the CDN for 30 s to 1 h
+    (Section 3.1).</li>
+  <li>New database: apply <code>supabase/migrations/*.sql</code> in order (currently <code>…0929000001</code> through <code>…0930000006</code>).</li>
+</ul>
+
+<h3><span class="num">13.5</span>Known limitations</h3>
+<ul>
+  <li><b>Negation is not understood.</b> “No sarees” cannot exclude sarees; semantic search has no “not”. The reasons line
+    does call out the mismatch.</li>
+  <li><b>Occasion is not a hard filter</b>, only a ranking signal via the embedding.</li>
+  <li><b>Free-tier quotas.</b> Gemini at 15 RPM per model limits upload bursts. Note that <code>GEMINI_VISION_MODEL</code> and
+    <code>GEMINI_TEXT_MODEL</code> default to the same model, so by default the Gemini text fallback (used when OpenAI is
+    missing or failing) shares the vision quota. This is deliberate (the separate-quota model tried instead timed out);
+    set <code>GEMINI_TEXT_MODEL</code> to change it.</li>
+  <li><b>Orphaned photos.</b> Analyzed-but-never-published uploads (and <code>verify-prd</code> runs) leave files in Storage.
+    README.md has a SQL query that lists them.</li>
+  <li><b>Payments are mocked</b>, and the charge precedes the insert (see 8.4).</li>
+  <li><b>No cancellation endpoint yet</b>, although the schema supports <code>status = 'cancelled'</code>.</li>
+  <li><b>Notifications poll</b> every 30 s; no push.</li>
+  <li><b>Location is area-level</b>: 15 fixed centroids, no real geolocation; everything in one area is 0 km apart.</li>
+  <li>The contact-reveal endpoint is public by design (the free contact reveal), so it is not rate-limited per user.</li>
+</ul>
+</section>
+
+<!-- ============================ 14 ============================ -->
+<section id="s14" class="newpage">
+<h2><span class="num">14</span>Reference</h2>
+<h3><span class="num">14.1</span>Endpoint reference</h3>
+<p class="small"><span class="tag">auth</span> needs a <code>drape_session</code> cookie ·
+  <span class="tag g">admin</span> needs <code>x-admin-key</code> · all others are public. All bodies are JSON unless noted.
+  Every error is <code>{ "error": … }</code>.</p>
+<table>
+  <thead><tr><th style="width:31%">Endpoint</th><th style="width:34%">Input</th><th>Success response · notable errors</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/health</code></td><td>–</td><td><code>{ ok, supabase, gemini }</code> (booleans)</td></tr>
+    <tr><td><code>GET /api/areas</code></td><td>–</td><td><code>{ areas: [{ name, lat, lng }] }</code> · CDN 1 h</td></tr>
+    <tr><td><code>GET /api/listings</code></td><td>query <code>area?</code>, <code>occasion?</code>, <code>limit</code> 1–48 (default 8), <code>offset</code> 0–10000</td><td><code>{ listings[], total }</code>: nearest first with <code>distance_km</code> when <code>area</code> is set, else newest first · 400 bad occasion/area · CDN 30 s</td></tr>
+    <tr><td><code>POST /api/listings/analyze</code> <span class="tag">auth</span>/<span class="tag g">admin</span></td><td>multipart field <code>image</code> ≤ 4 MB</td><td><code>{ image_url, draft }</code> · 401, 413, 415, 422 not_clothing, 429, 502 analysis_failed</td></tr>
+    <tr><td><code>POST /api/listings</code> <span class="tag">auth</span>/<span class="tag g">admin</span></td><td>draft + <code>image_url, size, price_per_day, area, owner_name, owner_contact</code></td><td>201 <code>{ listing }</code> · 400 foreign image / unknown area / invalid</td></tr>
+    <tr><td><code>GET /api/listings/:id</code></td><td>uuid</td><td><code>{ listing }</code> (public columns) · 404 · CDN 60 s</td></tr>
+    <tr><td><code>GET /api/listings/:id/contact</code></td><td>uuid</td><td><code>{ owner_name, owner_contact }</code> · 404</td></tr>
+    <tr><td><code>GET /api/listings/:id/availability</code></td><td>uuid</td><td><code>{ booked: [{ start_date, end_date }] }</code></td></tr>
+    <tr><td><code>GET /api/listings/:id/complete</code></td><td>uuid</td><td><code>{ slot, pairs_with, results[] }</code> (≤ 8, each with <code>slot</code>) · 404 · CDN 60 s</td></tr>
+    <tr><td><code>POST /api/search</code></td><td><code>{ query ≤ 500, area, size?, max_price?, reasons? }</code></td><td><code>{ parsed, relaxed, results[] }</code> + <code>Server-Timing</code> · 400 unknown area</td></tr>
+    <tr><td><code>POST /api/search/reasons</code></td><td><code>{ query, ids: uuid[1..6] }</code></td><td><code>{ reasons: [{ id, reason }] }</code></td></tr>
+    <tr><td><code>POST /api/bookings</code> <span class="tag">auth</span></td><td><code>{ listing_id, start_date, end_date, borrower_contact, payment_method: upi|card }</code></td><td>201 <code>{ booking }</code> · 400 dates/own listing, 401, 404, 409 overlap</td></tr>
+    <tr><td><code>GET /api/bookings/mine</code> <span class="tag">auth</span></td><td>–</td><td><code>{ bookings[] }</code></td></tr>
+    <tr><td><code>GET /api/notifications</code> <span class="tag">auth</span></td><td>–</td><td><code>{ notifications[], unread }</code></td></tr>
+    <tr><td><code>POST /api/notifications/read</code> <span class="tag">auth</span></td><td><code>{ ids?: uuid[] ≤ 100 }</code></td><td><code>{ ok: true }</code></td></tr>
+    <tr><td><code>GET /api/me</code> <span class="tag">auth</span></td><td>–</td><td><code>{ user, stats: { listed, rentals, earned } }</code> · 401</td></tr>
+    <tr><td><code>POST /api/auth/signup</code></td><td><code>{ name, email, password ≥ 8 }</code></td><td>201 <code>{ user }</code> + session cookie · 409 email taken</td></tr>
+    <tr><td><code>POST /api/auth/login</code></td><td><code>{ email, password }</code></td><td><code>{ user }</code> + session cookie · 401 generic for every miss · 429 email locked</td></tr>
+    <tr><td><code>POST /api/auth/logout</code></td><td>–</td><td><code>{ ok: true }</code>; session row deleted, cookie cleared</td></tr>
+    <tr><td><code>GET /api/auth/providers</code></td><td>–</td><td><code>{ password: true, google }</code></td></tr>
+    <tr><td><code>GET /api/auth/google</code></td><td>–</td><td>302 to <code>SUPABASE_URL/auth/v1/authorize?provider=google…</code> + verifier cookie</td></tr>
+    <tr><td><code>GET /api/auth/google/callback</code></td><td>query <code>code</code> + verifier cookie</td><td>302 to <code>/</code> + session cookie</td></tr>
+    <tr><td><code>POST /api/admin/retag</code> <span class="tag g">admin</span></td><td><code>{ id }</code></td><td><code>{ id, before, after }</code> or <code>{ id, skipped }</code> · 403, 404</td></tr>
+  </tbody>
+</table>
+<p class="small">Router-level errors for any path: <code>403 cross_site_request</code> (non-GET from a foreign Origin), <code>404 not_found</code>, <code>405 method_not_allowed</code>;
+  bodies: <code>415</code> if not <code>application/json</code>; validation: <code>400 invalid_request</code> with zod <code>issues</code>; AI quota: <code>429 rate_limited</code>.</p>
+
+<h3><span class="num">14.2</span>Glossary</h3>
+<table>
+  <thead><tr><th style="width:22%">Term</th><th>Meaning in DRAPE</th></tr></thead>
+  <tbody>
+    <tr><td>Anchor</td><td>The listing a “Complete the look” request starts from.</td></tr>
+    <tr><td>Cosine similarity</td><td><code>1 − (a &lt;=&gt; b)</code>; how close two embeddings point. Higher is more alike.</td></tr>
+    <tr><td>Draft</td><td>The vision model’s proposed tags for a photo, edited by the lister before publishing.</td></tr>
+    <tr><td>Embedding</td><td>A 768-number vector representing meaning, from <code>gemini-embedding-001</code>. Documents use <code>RETRIEVAL_DOCUMENT</code>, queries <code>RETRIEVAL_QUERY</code>.</td></tr>
+    <tr><td>Exclusion constraint</td><td>A Postgres constraint forbidding two rows whose values conflict under given operators (here: same listing and overlapping dates).</td></tr>
+    <tr><td>Fallback ladder</td><td>The sequence strict → wider radius → no budget → anywhere used when a step has no good match.</td></tr>
+    <tr><td>HNSW</td><td>Hierarchical navigable small-world graph: pgvector’s approximate nearest-neighbour index.</td></tr>
+    <tr><td>Match floor</td><td><code>MATCH_FLOOR</code> (0.68): the minimum top similarity for a ladder step to count as a hit.</td></tr>
+    <tr><td>PKCE</td><td>Proof Key for Code Exchange: the OAuth client keeps a random verifier and sends only its hash; the code can be redeemed only with the verifier. Used for Google sign-in.</td></tr>
+    <tr><td>PostGIS / geography</td><td>Geo extension; <code>geography(point, 4326)</code> stores lat/lng and measures in metres.</td></tr>
+    <tr><td>Relaxed message</td><td>The sentence explaining which filter the ladder loosened.</td></tr>
+    <tr><td>RLS</td><td>Row-level security. On with no policies means “no access except the service role”.</td></tr>
+    <tr><td>RPC</td><td>A Postgres function called via supabase-js <code>.rpc()</code>: <code>match_listings</code>, <code>complete_the_look</code>.</td></tr>
+    <tr><td>Service role</td><td>The Supabase key that bypasses RLS. Only the API (and trusted scripts) hold it.</td></tr>
+    <tr><td>Session</td><td>A <code>public.sessions</code> row keyed by the SHA-256 of the random token in the <code>drape_session</code> cookie.</td></tr>
+    <tr><td>Slot</td><td>Where a category sits in an outfit: top, bottom, one_piece, layer, other.</td></tr>
+    <tr><td>Style query</td><td>The parser’s rewrite of the request as a description of the ideal outfit; what gets embedded.</td></tr>
+    <tr><td>Vocabulary</td><td>The fixed lists in <code>shared/vocab.ts</code> that models, validators and UI all share.</td></tr>
+  </tbody>
+</table>
+</section>
+
+</body>
+</html>

@@ -13,7 +13,7 @@ const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!key || !process.env.SUPABASE_URL) { console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (use --env-file=.env.local).'); process.exit(1) }
 
-// Read every listing straight from the database (the public list endpoint is capped at 48).
+// Read every listing straight from the database (one query, no paging needed).
 const db = createClient(process.env.SUPABASE_URL, key, { auth: { persistSession: false } })
 const { data: listings, error } = await db.from('listings').select('id, title, category').order('created_at')
 if (error) { console.error(error.message); process.exit(1) }
