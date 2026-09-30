@@ -6,6 +6,7 @@ export type Filters = {
   size: ParsedQuery['size']
   max_price: number | null
   gender: ParsedQuery['gender']
+  categories: ParsedQuery['categories']
   exclude_categories: string[]
   exclude_colors: string[]
 }
@@ -35,6 +36,7 @@ export function mergeFilters(parsed: ParsedQuery, request: Pick<SearchRequest, '
     size: request.size ?? parsed.size,
     max_price: request.max_price ?? parsed.max_price,
     gender: parsed.gender,
+    categories: parsed.categories ?? [],
     exclude_categories: parsed.exclude_categories ?? [],
     exclude_colors: parsed.exclude_colors ?? [],
   }

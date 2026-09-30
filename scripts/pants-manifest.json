@@ -1,0 +1,342 @@
+[
+  {
+    "image": "https://www.ottostore.com/cdn/shop/files/magnific_shirt-color-muted-steel-b_bx4WBBm5Y2_500x.jpg?v=1790330216",
+    "size": "M",
+    "price_per_day": 500,
+    "area": "Adyar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Dark Black Solid Formal Trousers",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["formal_event", "party"],
+      "style_tags": ["minimal", "formal", "tailored"],
+      "colors": ["black"],
+      "description": "Straight-fit black formal trousers for dinners, office events and evening plans."
+    }
+  },
+  {
+    "image": "https://www.ottostore.com/cdn/shop/files/1_75cd5446-8189-4cb3-b992-28ca012b06c4_500x.jpg?v=1790330760",
+    "size": "L",
+    "price_per_day": 550,
+    "area": "Velachery",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Light Silver Grey Solid Formal Trousers",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["formal_event", "party"],
+      "style_tags": ["light", "modern", "smart"],
+      "colors": ["silver grey"],
+      "description": "A sleek silver-grey trouser for polished day-to-night looks."
+    }
+  },
+  {
+    "image": "https://www.ottostore.com/cdn/shop/files/4_9cf8cf25-1064-44fd-9e1e-8f0f2bd15d96_500x.jpg?v=1790330312",
+    "size": "M",
+    "price_per_day": 600,
+    "area": "T. Nagar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Deep Navy Solid Formal Trousers",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["formal_event", "wedding"],
+      "style_tags": ["classic", "sharp", "formal"],
+      "colors": ["navy"],
+      "description": "Deep navy trousers with a clean, formal silhouette for smart events."
+    }
+  },
+  {
+    "image": "https://www.ottostore.com/cdn/shop/files/CG1_500x.jpg?v=1788417941",
+    "size": "L",
+    "price_per_day": 525,
+    "area": "Anna Nagar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Charcoal Grey Solid Formal Trousers",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["formal_event", "interview"],
+      "style_tags": ["business", "clean", "elevated"],
+      "colors": ["charcoal grey"],
+      "description": "Professional charcoal trousers that work for interviews and evening plans."
+    }
+  },
+  {
+    "image": "https://i.pinimg.com/236x/78/85/6b/78856bedd398175cdd38df46be4fdd19.jpg",
+    "size": "L",
+    "price_per_day": 700,
+    "area": "Adyar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Extremely Baggy Jeans",
+      "category": "jeans",
+      "gender": "men",
+      "occasions": ["club_night", "casual_outing"],
+      "style_tags": ["baggy", "streetwear", "oversized"],
+      "colors": ["blue"],
+      "description": "Loose, oversized baggy jeans with a heavy streetwear look."
+    }
+  },
+  {
+    "image": "https://i.pinimg.com/236x/ef/b8/39/efb8394522f84ee6a6d4bb94eb59e6f7.jpg",
+    "size": "M",
+    "price_per_day": 650,
+    "area": "OMR",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Baggy Wide Leg Denim",
+      "category": "jeans",
+      "gender": "men",
+      "occasions": ["concert", "casual_outing"],
+      "style_tags": ["baggy", "wide-leg", "denim"],
+      "colors": ["washed blue"],
+      "description": "Relaxed wide-leg blue denim for a modern, oversized silhouette."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 600,
+    "area": "Nungambakkam",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Classic Mid Wash Straight Jeans",
+      "category": "jeans",
+      "gender": "men",
+      "occasions": ["casual_outing", "college_event"],
+      "style_tags": ["classic", "straight-fit", "denim"],
+      "colors": ["mid blue"],
+      "description": "Everyday straight-fit denim in a versatile mid-blue wash."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=900&q=85",
+    "size": "S",
+    "price_per_day": 575,
+    "area": "Guindy",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Slim Dark Wash Jeans",
+      "category": "jeans",
+      "gender": "women",
+      "occasions": ["casual_outing", "party"],
+      "style_tags": ["slim", "dark-wash", "polished"],
+      "colors": ["dark blue"],
+      "description": "Slim dark-wash jeans for a clean casual outfit."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1584370848010-d7fe6bc767ec?auto=format&fit=crop&w=900&q=85",
+    "size": "L",
+    "price_per_day": 625,
+    "area": "Porur",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Relaxed Black Cargo Pants",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["casual_outing", "concert"],
+      "style_tags": ["cargo", "utility", "streetwear"],
+      "colors": ["black"],
+      "description": "Relaxed black cargo trousers with a practical streetwear feel."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 650,
+    "area": "Kilpauk",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Olive Utility Trousers",
+      "category": "trousers",
+      "gender": "women",
+      "occasions": ["casual_outing", "concert"],
+      "style_tags": ["utility", "relaxed", "modern"],
+      "colors": ["olive"],
+      "description": "Relaxed olive trousers for travel days and casual styling."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 500,
+    "area": "Adyar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Sand Beige Relaxed Chinos",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["casual_outing", "photoshoot"],
+      "style_tags": ["chinos", "minimal", "relaxed"],
+      "colors": ["beige"],
+      "description": "Light beige chinos for relaxed daytime looks."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1475178626620-a4d074967452?auto=format&fit=crop&w=900&q=85",
+    "size": "L",
+    "price_per_day": 525,
+    "area": "Sholinganallur",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Stone Grey Tapered Chinos",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["interview", "casual_outing"],
+      "style_tags": ["tapered", "smart-casual", "clean"],
+      "colors": ["stone grey"],
+      "description": "Tapered stone-grey chinos that bridge office and weekend wear."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1552902865-b72c031ac5ea?auto=format&fit=crop&w=900&q=85",
+    "size": "S",
+    "price_per_day": 475,
+    "area": "Chromepet",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Cream Wide Leg Trousers",
+      "category": "trousers",
+      "gender": "women",
+      "occasions": ["photoshoot", "party"],
+      "style_tags": ["wide-leg", "minimal", "elegant"],
+      "colors": ["cream"],
+      "description": "Flowing cream wide-leg trousers for elevated daytime dressing."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1509551388413-e18d0ac5d495?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 550,
+    "area": "Anna Nagar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "High Waist Black Pleated Trousers",
+      "category": "trousers",
+      "gender": "women",
+      "occasions": ["formal_event", "party"],
+      "style_tags": ["pleated", "high-waist", "tailored"],
+      "colors": ["black"],
+      "description": "High-waisted pleated trousers with a tailored evening silhouette."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=900&q=85",
+    "size": "L",
+    "price_per_day": 575,
+    "area": "T. Nagar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Chocolate Brown Tailored Trousers",
+      "category": "trousers",
+      "gender": "women",
+      "occasions": ["formal_event", "party"],
+      "style_tags": ["tailored", "rich-tone", "modern"],
+      "colors": ["brown"],
+      "description": "Rich brown tailored trousers for a warm, modern formal look."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 525,
+    "area": "OMR",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Grey Drawstring Jogger Trousers",
+      "category": "trousers",
+      "gender": "men",
+      "occasions": ["casual_outing", "concert"],
+      "style_tags": ["jogger", "comfort", "athleisure"],
+      "colors": ["grey"],
+      "description": "Comfort-first grey jogger trousers for travel and relaxed days."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=900&q=85",
+    "size": "S",
+    "price_per_day": 600,
+    "area": "Velachery",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Blue Relaxed Fit Cargo Jeans",
+      "category": "jeans",
+      "gender": "women",
+      "occasions": ["concert", "casual_outing"],
+      "style_tags": ["cargo", "relaxed", "denim"],
+      "colors": ["blue"],
+      "description": "Relaxed blue cargo jeans with a practical oversized shape."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 625,
+    "area": "Mylapore",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Faded Blue Carpenter Jeans",
+      "category": "jeans",
+      "gender": "men",
+      "occasions": ["casual_outing", "concert"],
+      "style_tags": ["carpenter", "faded", "workwear"],
+      "colors": ["faded blue"],
+      "description": "Faded carpenter-style denim with a relaxed workwear profile."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1548883354-7622d03aca27?auto=format&fit=crop&w=900&q=85",
+    "size": "L",
+    "price_per_day": 675,
+    "area": "Besant Nagar",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Washed Grey Wide Leg Jeans",
+      "category": "jeans",
+      "gender": "women",
+      "occasions": ["club_night", "casual_outing"],
+      "style_tags": ["wide-leg", "washed", "statement"],
+      "colors": ["grey"],
+      "description": "Statement washed-grey wide-leg denim for an oversized look."
+    }
+  },
+  {
+    "image": "https://images.unsplash.com/photo-1604176354204-9268737828e4?auto=format&fit=crop&w=900&q=85",
+    "size": "M",
+    "price_per_day": 575,
+    "area": "Mylapore",
+    "owner_name": "Demo Owner",
+    "owner_contact": "owner@drape.demo",
+    "overrides": {
+      "title": "Indigo Bootcut Denim",
+      "category": "jeans",
+      "gender": "women",
+      "occasions": ["party", "photoshoot"],
+      "style_tags": ["bootcut", "indigo", "retro"],
+      "colors": ["indigo"],
+      "description": "Deep indigo bootcut denim with a subtle retro silhouette."
+    }
+  }
+]

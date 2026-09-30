@@ -1,6 +1,6 @@
 // Search-time AI (PRD §7.3): query parser and one batched "why it fits" call. The LLM never applies filters itself.
 import { parsedQuerySchema, type ParsedQuery } from '../../shared/contracts.js'
-import { CATEGORIES, OCCASION_LABELS, OCCASIONS, SIZES } from '../../shared/vocab.js'
+import { CATEGORY_LABELS, CATEGORIES, OCCASION_LABELS, OCCASIONS, SIZES } from '../../shared/vocab.js'
 import { withOneRetry } from './gemini.js'
 import { textJson } from './text-llm.js'
 
@@ -12,6 +12,7 @@ Return JSON only. Use null for anything the message does not clearly state — n
 - size: one of ${SIZES.join(', ')}, or null. Only if a size is stated ("M", "medium", "size L", "free size").
 - max_price: integer rupees per day, or null. "under ₹800", "below 800", "800 budget", "max 1k" → 800 / 1000.
 - gender: "women" or "men" only if the message clearly says who it is for ("for my brother", "men's", "for her"), else null.
+- categories: clothing categories clearly requested. "pants", "bottoms" or "trousers and jeans" → ["jeans", "trousers"]; "jeans" → ["jeans"]; "trousers" or "formal pants" → ["trousers"]; otherwise []. Use only categories from ${CATEGORIES.join(', ')}.
 - exclude_categories: categories the shopper explicitly does NOT want, from the category list below ("no sarees" → saree,
   "not a suit" → suit, "no jeans" → jeans). Empty if none. Categories: ${CATEGORIES.join(', ')}.
 - exclude_colors: colours explicitly NOT wanted, lowercase ("nothing black" → black). Empty if none.
@@ -23,8 +24,9 @@ const nullableEnum = (values: readonly string[]) => ({ type: ['string', 'null'],
 const PARSER_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['occasion', 'size', 'max_price', 'gender', 'style_query', 'exclude_categories', 'exclude_colors'],
+  required: ['occasion', 'size', 'max_price', 'gender', 'categories', 'style_query', 'exclude_categories', 'exclude_colors'],
   properties: {
+    categories: { type: 'array', items: { type: 'string', enum: [...CATEGORIES] } },
     exclude_categories: { type: 'array', items: { type: 'string', enum: [...CATEGORIES] } },
     exclude_colors: { type: 'array', items: { type: 'string' } },
     occasion: nullableEnum(OCCASIONS),
@@ -43,11 +45,25 @@ const PARSER_GEMINI_SCHEMA = {
     max_price: { type: 'INTEGER', nullable: true },
     gender: { type: 'STRING', enum: ['women', 'men'], nullable: true },
     style_query: { type: 'STRING' },
+    categories: { type: 'ARRAY', items: { type: 'STRING', enum: [...CATEGORIES] } },
     exclude_categories: { type: 'ARRAY', items: { type: 'STRING', enum: [...CATEGORIES] } },
     exclude_colors: { type: 'ARRAY', items: { type: 'STRING' } },
   },
-  required: ['occasion', 'size', 'max_price', 'gender', 'style_query', 'exclude_categories', 'exclude_colors'],
-  propertyOrdering: ['occasion', 'size', 'max_price', 'gender', 'style_query', 'exclude_categories', 'exclude_colors'],
+  required: ['occasion', 'size', 'max_price', 'gender', 'categories', 'style_query', 'exclude_categories', 'exclude_colors'],
+  propertyOrdering: ['occasion', 'size', 'max_price', 'gender', 'categories', 'style_query', 'exclude_categories', 'exclude_colors'],
+}
+
+const PANTS_WORDS = /\b(pants?|bottoms?|trousers?)\b/i
+const JEANS_WORDS = /\bjeans?\b/i
+const NEGATED = (word: RegExp) => new RegExp(`\\b(no|not|without|except|nothing)\\s+(\\w+\\s+)?${word.source.replace(/^\\b|\\b$/g, '')}`, 'i')
+
+// Keyword backstop for the parser: "pants" always means jeans + trousers, "jeans" means jeans — unless negated ("no jeans").
+export function applyCategoryIntent(query: string, parsed: ParsedQuery): ParsedQuery {
+  const excluded = new Set(parsed.exclude_categories ?? [])
+  const keep = (cats: ParsedQuery['categories']) => cats.filter((c) => !excluded.has(c))
+  if (PANTS_WORDS.test(query) && !NEGATED(PANTS_WORDS).test(query)) return { ...parsed, categories: keep(['jeans', 'trousers']) }
+  if (JEANS_WORDS.test(query) && !NEGATED(JEANS_WORDS).test(query)) return { ...parsed, categories: keep(['jeans']) }
+  return parsed
 }
 
 // A search should still work if the parser fails twice: fall back to pure semantic search on the raw text.
@@ -61,16 +77,19 @@ export async function parseQuery(query: string): Promise<{ parsed: ParsedQuery; 
       geminiSchema: PARSER_GEMINI_SCHEMA,
       timeoutMs: 5_000,
     })))
-    return { parsed, degraded: false }
+    return { parsed: applyCategoryIntent(query, parsed), degraded: false }
   } catch (error) {
     console.error('Query parser failed, using raw query:', (error as Error).message)
-    return { parsed: { occasion: null, size: null, max_price: null, gender: null, style_query: query, exclude_categories: [], exclude_colors: [] }, degraded: true }
+    return { parsed: applyCategoryIntent(query, { occasion: null, size: null, max_price: null, gender: null, categories: [], style_query: query, exclude_categories: [], exclude_colors: [] }), degraded: true }
   }
 }
 
 // What gets embedded at search time: the rewritten intent plus the occasion name, mirroring how listings are embedded.
 export function queryEmbeddingText(parsed: ParsedQuery): string {
-  return parsed.occasion ? `${parsed.style_query}. occasion: ${OCCASION_LABELS[parsed.occasion]}` : parsed.style_query
+  const parts = [parsed.style_query]
+  if (parsed.occasion) parts.push(`occasion: ${OCCASION_LABELS[parsed.occasion]}`)
+  if (parsed.categories?.length) parts.push(`category: ${parsed.categories.map((category) => CATEGORY_LABELS[category]).join(', ')}`)
+  return parts.join('. ')
 }
 
 export const REASONS_SYSTEM_PROMPT = `For each rental listing, write one short reason it fits the shopper's request.
